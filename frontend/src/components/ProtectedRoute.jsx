@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from "react-router-dom";
+import { PageSkeleton } from "./Skeleton";
 import { useAuth } from "../context/AuthContext";
-import { PageLoader } from "./Spinner";
 
 /**
  * Route guard.
@@ -12,7 +12,7 @@ export default function ProtectedRoute({ children, requiresBusiness = true, gues
   const { user, loading } = useAuth();
   const location = useLocation();
 
-  if (loading) return <PageLoader />;
+  if (loading) return <PageSkeleton />;
 
   if (guestOnly) {
     if (user) {

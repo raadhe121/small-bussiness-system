@@ -35,7 +35,7 @@ export default function Login() {
         <span className="rounded-xl bg-brand-500 p-2">
           <Store className="w-6 h-6 text-white" />
         </span>
-        <span className="text-white font-bold text-2xl">BusinessHub</span>
+        <span className="text-white font-bold text-2xl">DukaanSetu</span>
       </Link>
 
       <InstallPrompt />

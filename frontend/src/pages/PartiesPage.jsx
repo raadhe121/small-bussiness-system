@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TableSkeleton, CardGridSkeleton } from "../components/Skeleton";
 import { Link } from "react-router-dom";
 import { Users2, Plus, Pencil, Trash2, Phone } from "lucide-react";
 import api, { errMsg } from "../services/api";
@@ -10,7 +11,7 @@ import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { TableSkeleton } from "../components/Skeleton";
+
 import EmptyState from "../components/EmptyState";
 import { inr } from "../utils/format";
 

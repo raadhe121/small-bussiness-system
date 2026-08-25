@@ -1,4 +1,4 @@
-/* BusinessHub service worker — offline app shell + product cache + offline fallback */
+/* DukaanSetu service worker — offline app shell + product cache + offline fallback */
 const VERSION = "v1";
 const STATIC_CACHE = `bh-static-${VERSION}`;
 const PAGE_CACHE = `bh-pages-${VERSION}`;

@@ -26,7 +26,7 @@ export default function InstallPrompt() {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-slate-800">
-          {isIOS ? "Add BusinessHub to your Home Screen" : "Install the BusinessHub app"}
+          {isIOS ? "Add DukaanSetu to your Home Screen" : "Install the DukaanSetu app"}
         </p>
         <p className="text-xs text-slate-500">
           {isIOS

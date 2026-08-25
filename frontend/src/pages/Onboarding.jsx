@@ -68,7 +68,7 @@ export default function Onboarding() {
           <span className="rounded-xl bg-brand-500 p-2">
             <Store className="w-6 h-6 text-white" />
           </span>
-          <span className="font-bold text-2xl text-slate-800">BusinessHub</span>
+          <span className="font-bold text-2xl text-slate-800">DukaanSetu</span>
         </div>
 
         {/* Stepper */}

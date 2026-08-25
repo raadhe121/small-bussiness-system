@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AuthProvider } from "./context/AuthContext";
+import { BranchProvider } from "./context/BranchContext";
 import { ToastProvider } from "./context/ToastContext";
 import { registerServiceWorker } from "./services/swRegister";
 import { initOfflineSync } from "./services/offlineQueue";
@@ -17,9 +18,11 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <ToastProvider>
-          <App />
-        </ToastProvider>
+        <BranchProvider>
+          <ToastProvider>
+            <App />
+          </ToastProvider>
+        </BranchProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

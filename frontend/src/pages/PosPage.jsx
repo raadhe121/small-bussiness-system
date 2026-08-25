@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { PageSkeleton } from "../components/Skeleton";
 import { useNavigate } from "react-router-dom";
 import {
   ScanLine, Pause, Play, Trash2, Plus, Minus, Printer, ShoppingCart,
@@ -9,7 +10,6 @@ import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
-import Spinner from "../components/Spinner";
 import EmptyState from "../components/EmptyState";
 import BarcodeScanner from "../components/BarcodeScanner";
 import ThermalReceipt from "../components/ThermalReceipt";
@@ -259,7 +259,7 @@ export default function PosPage() {
     }
   };
 
-  if (pLoading) return <Spinner className="block mx-auto my-16" />;
+  if (pLoading) return <PageSkeleton />;
   if (!products?.length)
     return (
       <EmptyState

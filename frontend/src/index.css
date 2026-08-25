@@ -117,3 +117,27 @@
   .no-print { display: none !important; }
   .receipt-paper { box-shadow: none !important; }
 }
+
+/* Branch selector (top bar) */
+.branch-select-wrap { display: flex; align-items: center; gap: 0.4rem; }
+.branch-select-label { font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.branch-select {
+  border: 1px solid rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.5);
+  color: #334155;
+  border-radius: 0.6rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  outline: none;
+}
+.branch-select:focus { ring: 2px; border-color: #6366f1; }
+.branch-chip {
+  display: flex; align-items: center; gap: 0.4rem;
+  background: rgba(255,255,255,0.55);
+  border: 1px solid rgba(255,255,255,0.6);
+  padding: 0.3rem 0.7rem; border-radius: 0.6rem;
+  font-size: 0.8rem; font-weight: 500; color: #475569;
+}
+.branch-dot { width: 8px; height: 8px; border-radius: 9999px; background: #10b981; }
+.branch-active-dot { width: 8px; height: 8px; border-radius: 9999px; background: #6366f1; }

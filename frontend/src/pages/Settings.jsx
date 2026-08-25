@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PageSkeleton } from "../components/Skeleton";
 import { useNavigate } from "react-router-dom";
 import { Building2, ShieldCheck, Save, LogOut } from "lucide-react";
 import api, { errMsg } from "../services/api";
@@ -6,7 +7,6 @@ import { submitOrQueue } from "../services/offlineQueue";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
-import Spinner from "../components/Spinner";
 import useFetch from "../hooks/useFetch";
 
 const INDIAN_STATES = [
@@ -94,7 +94,7 @@ export default function Settings() {
     }
   };
 
-  if (!business) return <Spinner className="block mx-auto my-16" />;
+  if (!business) return <PageSkeleton />;
 
   return (
     <div>
@@ -173,7 +173,7 @@ export default function Settings() {
             onClick={() => { logout(); navigate("/login"); }}
             className="btn-secondary w-full !text-red-600"
           >
-            <LogOut className="w-4 h-4" /> Sign out of BusinessHub
+            <LogOut className="w-4 h-4" /> Sign out of DukaanSetu
           </button>
         </div>
       </div>

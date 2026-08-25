@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TableSkeleton, CardGridSkeleton } from "../components/Skeleton";
 import { Link } from "react-router-dom";
 import { ArrowDownToLine, Plus, Eye } from "lucide-react";
 import api from "../services/api";
@@ -6,7 +7,7 @@ import useFetch from "../hooks/useFetch";
 import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
-import { TableSkeleton } from "../components/Skeleton";
+
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
@@ -43,6 +44,7 @@ export default function Purchases() {
                   <tr>
                     <th className="th">Bill</th>
                     <th className="th">Supplier</th>
+                    <th className="th">Branch</th>
                     <th className="th">Date</th>
                     <th className="th">Method</th>
                     <th className="th text-right">Total</th>
@@ -55,6 +57,7 @@ export default function Purchases() {
                     <tr key={p.id} className="hover:bg-slate-50/60">
                       <td className="td font-semibold">{p.billNo || "—"}</td>
                       <td className="td">{p.supplier?.name || <span className="text-slate-400">—</span>}</td>
+                      <td className="td text-slate-500">{p.branchName || "—"}</td>
                       <td className="td">{fmtDate(p.purchaseDate)}</td>
                       <td className="td"><span className="badge bg-slate-100 text-slate-600">{String(p.paymentMethod).replace("_", " ")}</span></td>
                       <td className="td text-right font-semibold">{inr(p.grandTotal)}</td>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TableSkeleton, CardGridSkeleton } from "../components/Skeleton";
 import { Link } from "react-router-dom";
 import { Wallet, Plus } from "lucide-react";
 import api, { errMsg } from "../services/api";
@@ -8,7 +9,7 @@ import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Modal from "../components/Modal";
-import { TableSkeleton } from "../components/Skeleton";
+
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
@@ -103,6 +104,7 @@ export default function Payments() {
                   <tr>
                     <th className="th">Date</th>
                     <th className="th">Party</th>
+                    <th className="th">Branch</th>
                     <th className="th">Method</th>
                     <th className="th">Reference</th>
                     <th className="th text-right">Amount</th>
@@ -121,6 +123,7 @@ export default function Payments() {
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
+                      <td className="td text-slate-500">{p.branchName || "—"}</td>
                       <td className="td"><span className="badge bg-blue-50 text-blue-700">{String(p.method).replace("_", " ")}</span></td>
                       <td className="td text-slate-500">{p.reference || p.notes || "—"}</td>
                       <td className={`td text-right font-bold ${isCustomer ? "text-emerald-600" : "text-red-500"}`}>{inr(p.amount)}</td>

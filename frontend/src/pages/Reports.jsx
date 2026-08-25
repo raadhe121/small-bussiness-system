@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TableSkeleton, CardGridSkeleton } from "../components/Skeleton";
 import {
   BarChart3, ShoppingCart, ArrowDownToLine, TrendingUp,
   ReceiptIndianRupee, Boxes, Wallet, Users2, Truck,
@@ -6,7 +7,6 @@ import {
 import api from "../services/api";
 import useFetch from "../hooks/useFetch";
 import PageHeader from "../components/PageHeader";
-import Spinner from "../components/Spinner";
 import { inr } from "../utils/format";
 
 const TABS = [
@@ -77,9 +77,7 @@ export default function Reports() {
         </div>
       </div>
 
-      {loading ? (
-        <Spinner className="block mx-auto my-16" />
-      ) : (
+      {loading ? (<TableSkeleton rows={6} cols={6} />) : (
         <div className="space-y-4">
           {tab === "sales" && data?.summary && (
             <>

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { PageSkeleton } from "../../components/Skeleton";
 import {
   Store,
   Users2,
@@ -14,13 +15,12 @@ import api from "../../services/api";
 import useFetch from "../../hooks/useFetch";
 import PageHeader from "../../components/PageHeader";
 import StatCard from "../../components/StatCard";
-import Spinner from "../../components/Spinner";
 import { compactInr, fmtDate } from "../../utils/format";
 
 export default function PlatformOverview() {
   const { data, loading } = useFetch(() => api.get("/platform/overview").then((r) => r.data.data), []);
 
-  if (loading || !data) return <Spinner className="block mx-auto my-20" />;
+  if (loading || !data) return <PageSkeleton />;
 
   const { stats, recentBusinesses } = data;
 
@@ -28,7 +28,7 @@ export default function PlatformOverview() {
     <div>
       <PageHeader
         title="Platform Overview"
-        subtitle="Everything happening across BusinessHub"
+        subtitle="Everything happening across DukaanSetu"
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

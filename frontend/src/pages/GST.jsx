@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { TableSkeleton, CardGridSkeleton } from "../components/Skeleton";
 import { Percent, FileSpreadsheet } from "lucide-react";
 import api from "../services/api";
 import useFetch from "../hooks/useFetch";
 import PageHeader from "../components/PageHeader";
-import { TableSkeleton } from "../components/Skeleton";
+
 import { inr } from "../utils/format";
 
 const PRESETS = [["this_month", "This month"], ["today", "Today"], ["this_week", "This week"]];
@@ -106,7 +107,7 @@ export default function GST() {
 
           <p className="text-xs text-slate-400 mt-4 max-w-2xl">
             Note: This is an informational summary computed from your recorded transactions.
-            BusinessHub does not file GST returns or connect to the GSTN portal — export these
+            DukaanSetu does not file GST returns or connect to the GSTN portal — export these
             figures to your CA / filing software.
           </p>
         </>

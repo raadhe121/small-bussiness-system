@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TableSkeleton, CardGridSkeleton } from "../components/Skeleton";
 import { useSearchParams, Link } from "react-router-dom";
 import { Boxes, ArrowDownCircle, ArrowUpCircle, SlidersHorizontal } from "lucide-react";
 import api, { errMsg } from "../services/api";
@@ -9,7 +10,7 @@ import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
 import Modal from "../components/Modal";
-import { TableSkeleton } from "../components/Skeleton";
+
 import EmptyState from "../components/EmptyState";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";

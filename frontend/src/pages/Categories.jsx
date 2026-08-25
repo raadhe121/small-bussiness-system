@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TableSkeleton, CardGridSkeleton } from "../components/Skeleton";
 import { Tags, Plus, Pencil, Trash2 } from "lucide-react";
 import api, { errMsg } from "../services/api";
 import { submitOrQueue } from "../services/offlineQueue";
@@ -8,7 +9,7 @@ import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { TableSkeleton } from "../components/Skeleton";
+
 import EmptyState from "../components/EmptyState";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";

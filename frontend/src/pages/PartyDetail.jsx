@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PageSkeleton } from "../components/Skeleton";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Wallet, Phone, Mail, MapPin, FileText } from "lucide-react";
 import api, { errMsg } from "../services/api";
@@ -6,7 +7,6 @@ import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
 import Modal from "../components/Modal";
-import Spinner from "../components/Spinner";
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate, titleCase } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
@@ -33,7 +33,7 @@ export default function PartyDetail({ mode }) {
     [id, mode]
   );
 
-  if (loading) return <Spinner className="block mx-auto my-16" />;
+  if (loading) return <PageSkeleton />;
   if (error || !data)
     return <EmptyState title={`${label} not found`} action={<Link className="btn-secondary" to={base}>Back</Link>} />;
 

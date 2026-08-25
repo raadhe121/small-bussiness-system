@@ -27,8 +27,11 @@ import {
   Shield,
   ShieldCheck,
   ScanLine,
+  Building2,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useBranch } from "../context/BranchContext";
+import BranchSelector from "../components/BranchSelector";
 import api, { errMsg } from "../services/api";
 import InstallPrompt from "../components/InstallPrompt";
 import { ROLE_LABELS, fmtDateTime } from "../utils/format";
@@ -74,6 +77,7 @@ const NAV_GROUPS = [
       { to: "/invoices", label: "All Invoices", desc: "Search every invoice", icon: FileText, permission: "invoices:view" },
     ],
   },
+  { to: "/branches", label: "Branches", icon: Building2, permission: "branches:manage" },
 ];
 
 /** Returns only the nav groups/items the user's role is allowed to see. */
@@ -457,6 +461,8 @@ export default function Layout() {
 
           {canNotifications && <NotificationBell />}
 
+          <BranchSelector />
+
           <div className="relative" ref={profileRef}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
@@ -571,7 +577,7 @@ export default function Layout() {
       </main>
 
       <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
-        BusinessHub — made for Indian small businesses
+        DukaanSetu — made for Indian small businesses
       </footer>
     </div>
   );

@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { TableSkeleton, CardGridSkeleton } from "../../components/Skeleton";
 import { Pencil, Trash2, Eye, Store } from "lucide-react";
 import api, { errMsg } from "../../services/api";
 import { submitOrQueue } from "../../services/offlineQueue";
 import useFetch from "../../hooks/useFetch";
 import { useToast } from "../../context/ToastContext";
 import PageHeader from "../../components/PageHeader";
-import { TableSkeleton } from "../../components/Skeleton";
+
 import EmptyState from "../../components/EmptyState";
 import SearchInput from "../../components/SearchInput";
 import Pagination from "../../components/Pagination";

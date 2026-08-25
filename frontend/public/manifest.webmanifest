@@ -1,6 +1,6 @@
 {
-  "name": "BusinessHub — Manage your business",
-  "short_name": "BusinessHub",
+  "name": "DukaanSetu — Manage your business",
+  "short_name": "DukaanSetu",
   "description": "Multi-tenant SaaS for Indian small businesses — billing, inventory, customers & reports. Works offline.",
   "start_url": "/dashboard",
   "scope": "/",

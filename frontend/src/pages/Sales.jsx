@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TableSkeleton, CardGridSkeleton } from "../components/Skeleton";
 import { Link } from "react-router-dom";
 import { ShoppingCart, Plus, Eye, RotateCcw } from "lucide-react";
 import api from "../services/api";
@@ -6,7 +7,6 @@ import useFetch from "../hooks/useFetch";
 import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
-import { TableSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate, titleCase } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
@@ -34,9 +34,7 @@ export default function Sales() {
       <SearchInput className="sm:max-w-xs mb-4" value={search} onChange={setSearch} placeholder="Search invoice or customer..." />
 
       <div className="card overflow-hidden">
-        {loading ? (
-          <TableSkeleton rows={8} cols={7} />
-        ) : data.items.length === 0 ? (
+        {loading ? (<TableSkeleton rows={8} cols={7} />) : data.items.length === 0 ? (
           <EmptyState icon={ShoppingCart} title="No sales yet" subtitle="Create your first sale." action={canCreate && <Link to="/sales/new" className="btn-primary"><Plus className="w-4 h-4" /> New Sale</Link>} />
         ) : (
           <>
@@ -46,6 +44,7 @@ export default function Sales() {
                   <tr>
                     <th className="th">Invoice</th>
                     <th className="th">Customer</th>
+                    <th className="th">Branch</th>
                     <th className="th">Date</th>
                     <th className="th">Method</th>
                     <th className="th text-right">Total</th>
@@ -58,6 +57,7 @@ export default function Sales() {
                     <tr key={s.id} className="hover:bg-slate-50/60">
                       <td className="td font-semibold">{s.invoiceNo}</td>
                       <td className="td">{s.customer?.name || <span className="text-slate-400">Walk-in</span>}</td>
+                      <td className="td text-slate-500">{s.branchName || "—"}</td>
                       <td className="td">{fmtDate(s.saleDate)}</td>
                       <td className="td"><span className="badge bg-slate-100 text-slate-600">{titleCase(s.paymentMethod)}</span></td>
                       <td className="td text-right font-semibold">{inr(s.grandTotal)}</td>

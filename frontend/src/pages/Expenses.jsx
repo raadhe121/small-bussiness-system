@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TableSkeleton, CardGridSkeleton } from "../components/Skeleton";
 import { ReceiptIndianRupee, Plus, Pencil, Trash2 } from "lucide-react";
 import api, { errMsg } from "../services/api";
 import { submitOrQueue } from "../services/offlineQueue";
@@ -8,7 +9,7 @@ import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { TableSkeleton } from "../components/Skeleton";
+
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate, toInputDate } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
@@ -120,6 +121,7 @@ export default function Expenses() {
                   <tr>
                     <th className="th">Date</th>
                     <th className="th">Category</th>
+                    <th className="th">Branch</th>
                     <th className="th">Description</th>
                     <th className="th">Method</th>
                     <th className="th text-right">Amount</th>
@@ -131,6 +133,7 @@ export default function Expenses() {
                     <tr key={e.id} className="hover:bg-slate-50/60">
                       <td className="td">{fmtDate(e.expenseDate)}</td>
                       <td className="td"><span className="badge bg-brand-50 text-brand-700">{e.expenseCategory.name}</span></td>
+                      <td className="td text-slate-500">{e.branchName || "—"}</td>
                       <td className="td text-slate-500 max-w-xs truncate">{e.description || e.reference || "—"}</td>
                       <td className="td">{String(e.method).replace("_", " ")}</td>
                       <td className="td text-right font-semibold text-red-500">{inr(e.amount)}</td>

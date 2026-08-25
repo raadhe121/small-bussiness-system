@@ -1,9 +1,9 @@
 import { useRef } from "react";
+import { PageSkeleton } from "../components/Skeleton";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Printer, Share2 } from "lucide-react";
 import api from "../services/api";
 import useFetch from "../hooks/useFetch";
-import Spinner from "../components/Spinner";
 import EmptyState from "../components/EmptyState";
 import { useToast } from "../context/ToastContext";
 import { inr, fmtDate, titleCase } from "../utils/format";
@@ -17,7 +17,7 @@ export default function InvoiceView() {
     [saleId]
   );
 
-  if (loading) return <Spinner className="block mx-auto my-16" />;
+  if (loading) return <PageSkeleton />;
   if (error || !data) return <EmptyState title="Invoice not found" action={<Link className="btn-secondary" to="/invoices">Back to invoices</Link>} />;
 
   const { invoice: s, business: b, payments } = data;

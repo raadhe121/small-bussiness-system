@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TableSkeleton, CardGridSkeleton } from "../components/Skeleton";
 import { Shield, Plus, Pencil, Trash2, Lock, Users2 } from "lucide-react";
 import api, { errMsg } from "../services/api";
 import { submitOrQueue } from "../services/offlineQueue";
@@ -6,7 +7,7 @@ import useFetch from "../hooks/useFetch";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { CardGridSkeleton } from "../components/Skeleton";
+
 import EmptyState from "../components/EmptyState";
 import { useToast } from "../context/ToastContext";
 import { ALL_PERMISSIONS } from "../utils/permissions";
@@ -111,9 +112,7 @@ export default function Roles() {
         actions={<button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> New Role</button>}
       />
 
-      {loading ? (
-        <CardGridSkeleton count={4} />
-      ) : (
+      {loading ? (<CardGridSkeleton count={4} />) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Built-in roles */}
           <div className="card overflow-hidden">

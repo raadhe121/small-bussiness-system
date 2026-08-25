@@ -1,13 +1,14 @@
 import { useState } from "react";
+import { TableSkeleton, CardGridSkeleton } from "../components/Skeleton";
 import { UserCog, Plus, Pencil, Shield } from "lucide-react";
 import api, { errMsg } from "../services/api";
 import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useAuth } from "../context/AuthContext";
+import { useBranch } from "../context/BranchContext";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/Modal";
-import { TableSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { fmtDateTime, ROLE_LABELS } from "../utils/format";
@@ -17,10 +18,12 @@ const BUILTIN_ROLES = ["ADMIN", "MANAGER", "EMPLOYEE", "ACCOUNTANT"];
 export default function Users() {
   const toast = useToast();
   const { user: me, refresh } = useAuth();
+  const { branches } = useBranch();
   const isOwner = me?.role === "OWNER";
+  const canAssignBranch = isOwner && branches.length > 0;
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", role: "EMPLOYEE", roleId: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", role: "EMPLOYEE", roleId: "", branchId: "" });
   const [disableTarget, setDisableTarget] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -30,13 +33,13 @@ export default function Users() {
 
   const openCreate = () => {
     setEditItem(null);
-    setForm({ name: "", email: "", phone: "", password: "", role: "EMPLOYEE", roleId: "" });
+    setForm({ name: "", email: "", phone: "", password: "", role: "EMPLOYEE", roleId: "", branchId: branches[0]?.id || "" });
     setShowForm(true);
   };
 
   const openEdit = (u) => {
     setEditItem(u);
-    setForm({ name: u.name, email: u.email, phone: u.phone || "", password: "", role: u.role, roleId: u.customRoleId || "" });
+    setForm({ name: u.name, email: u.email, phone: u.phone || "", password: "", role: u.role, roleId: u.customRoleId || "", branchId: u.branchId || "" });
     setShowForm(true);
   };
 
@@ -48,9 +51,10 @@ export default function Users() {
     e.preventDefault();
     setSaving(true);
     try {
+      const branchPayload = canAssignBranch ? { branchId: form.branchId || null } : {};
       const result = editItem
-        ? await submitOrQueue({ label: "Update team member", url: `/users/${editItem.id}`, method: "PUT", body: { name: form.name, phone: form.phone, ...rolePayload() } })
-        : await submitOrQueue({ label: "New team member", url: "/users", method: "POST", body: { ...form, ...rolePayload() } });
+        ? await submitOrQueue({ label: "Update team member", url: `/users/${editItem.id}`, method: "PUT", body: { name: form.name, phone: form.phone, ...rolePayload(), ...branchPayload } })
+        : await submitOrQueue({ label: "New team member", url: "/users", method: "POST", body: { ...form, ...rolePayload(), branchId: form.branchId || null } });
       toast.success(result.queued ? "Change queued — will sync" : editItem ? "Team member updated" : "Team member added — share the credentials securely");
       setShowForm(false);
       refetch();
@@ -90,15 +94,14 @@ export default function Users() {
       )}
 
       <div className="card overflow-hidden">
-        {loading ? (
-          <TableSkeleton />
-        ) : (
+        {loading ? (<TableSkeleton />) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="th">Member</th>
                   <th className="th">Role</th>
+                  <th className="th">Branch</th>
                   <th className="th">Status</th>
                   <th className="th">Last login</th>
                   <th className="th"></th>
@@ -130,6 +133,7 @@ export default function Users() {
                         }`}>{ROLE_LABELS[u.role]}</span>
                       )}
                     </td>
+                    <td className="td text-slate-500">{u.branch?.name || "—"}</td>
                     <td className="td">
                       <span className={`badge ${u.isActive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
                         {u.isActive ? "Active" : "Disabled"}
@@ -223,6 +227,23 @@ export default function Users() {
               </p>
             )}
           </div>
+          {canAssignBranch && (
+            <div>
+              <label className="label">Branch (where this member works)</label>
+              <select
+                className="input"
+                value={form.branchId}
+                onChange={(e) => setForm({ ...form, branchId: e.target.value })}
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}{b.isDefault ? " (default)" : ""}</option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-400 mt-1.5">
+                Employees only see & operate within their assigned branch.
+              </p>
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <button type="button" className="btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
             <button className="btn-primary" disabled={saving}>{saving ? "Saving..." : "Save"}</button>

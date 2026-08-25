@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { PageSkeleton } from "../components/Skeleton";
 import { submitOrQueue } from "../services/offlineQueue";
 import { Link, useNavigate } from "react-router-dom";
 import { Trash2, Plus, ShoppingCart } from "lucide-react";
@@ -6,7 +7,6 @@ import api, { errMsg } from "../services/api";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
-import Spinner from "../components/Spinner";
 import EmptyState from "../components/EmptyState";
 import { inr, toInputDate } from "../utils/format";
 
@@ -122,7 +122,7 @@ export default function NewSale() {
     }
   };
 
-  if (pLoading) return <Spinner className="block mx-auto my-16" />;
+  if (pLoading) return <PageSkeleton />;
   if (!products?.length)
     return (
       <EmptyState

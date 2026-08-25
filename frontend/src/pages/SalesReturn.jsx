@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PageSkeleton } from "../components/Skeleton";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { RotateCcw, ArrowLeft } from "lucide-react";
 import api, { errMsg } from "../services/api";
@@ -6,7 +7,6 @@ import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
-import Spinner from "../components/Spinner";
 import { inr, titleCase, fmtDate } from "../utils/format";
 
 const PAYMENT_METHODS = ["CASH", "UPI", "CARD", "BANK_TRANSFER", "OTHER"];
@@ -56,7 +56,7 @@ export default function SalesReturn() {
     }
   };
 
-  if (loading) return <Spinner className="block mx-auto my-16" />;
+  if (loading) return <PageSkeleton />;
   if (!sale) return null;
 
   return (

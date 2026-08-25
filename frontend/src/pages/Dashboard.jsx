@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { PageSkeleton } from "../components/Skeleton";
 import {
   IndianRupee, TrendingUp, ShoppingCart, ArrowDownToLine,
   ReceiptIndianRupee, Users2, Truck, Package, AlertTriangle,
@@ -10,7 +11,6 @@ import {
 import api from "../services/api";
 import useFetch from "../hooks/useFetch";
 import StatCard from "../components/StatCard";
-import Spinner from "../components/Spinner";
 import EmptyState from "../components/EmptyState";
 import { inr, compactInr, fmtDate } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
@@ -39,7 +39,7 @@ export default function Dashboard() {
   const canViewInventory = can("inventory:view");
   const { data, loading, error } = useFetch(() => api.get("/reports/dashboard").then((r) => r.data.data), []);
 
-  if (loading) return <Spinner className="block mx-auto mt-20 w-8 h-8" />;
+  if (loading) return <PageSkeleton />;
   if (error) return <EmptyState title="Could not load dashboard" subtitle={error.message} />;
 
   const d = data;

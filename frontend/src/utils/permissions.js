@@ -10,14 +10,14 @@ const PERMISSIONS = {
     "suppliers:view", "suppliers:manage", "sales:view", "sales:create", "purchases:view",
     "purchases:create", "payments:view", "payments:create", "expenses:view", "expenses:manage",
     "invoices:view", "reports:view", "gst:view", "users:manage", "settings:manage",
-    "notifications:view", "search:use",
+    "branches:manage", "notifications:view", "search:use",
   ],
   MANAGER: [
     "dashboard:view", "products:view", "products:manage", "categories:view", "categories:manage",
     "inventory:view", "inventory:manage", "customers:view", "customers:manage",
     "suppliers:view", "suppliers:manage", "sales:view", "sales:create", "purchases:view",
     "purchases:create", "payments:view", "expenses:view", "invoices:view", "reports:view",
-    "gst:view", "notifications:view", "search:use",
+    "gst:view", "branches:manage", "notifications:view", "search:use",
   ],
   ACCOUNTANT: [
     "dashboard:view", "products:view", "categories:view", "inventory:view", "customers:view",
@@ -90,5 +90,6 @@ export const ALL_PERMISSIONS = [
     { key: "users:manage", label: "View team members" },
     { key: "settings:manage", label: "Manage business settings" },
     { key: "roles:manage", label: "Manage custom roles" },
+    { key: "branches:manage", label: "Manage branches & locations" },
   ] },
 ];

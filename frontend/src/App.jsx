@@ -36,6 +36,7 @@ import GST from "./pages/GST";
 import Users from "./pages/Users";
 import Roles from "./pages/Roles";
 import Settings from "./pages/Settings";
+import Branches from "./pages/Branches";
 
 // Platform admin panel
 import PlatformOverview from "./pages/platform/PlatformOverview";
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="/reports" element={<PermissionGate permission="reports:view"><Reports /></PermissionGate>} />
         <Route path="/gst" element={<PermissionGate permission="gst:view"><GST /></PermissionGate>} />
         <Route path="/users" element={<PermissionGate permission="users:manage"><Users /></PermissionGate>} />
+        <Route path="/branches" element={<PermissionGate permission="branches:manage"><Branches /></PermissionGate>} />
         <Route path="/roles" element={<PermissionGate permission="roles:manage"><Roles /></PermissionGate>} />
         <Route path="/settings" element={<PermissionGate permission="settings:manage"><Settings /></PermissionGate>} />
       </Route>

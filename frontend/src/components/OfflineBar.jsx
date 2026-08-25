@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { WifiOff, CloudUpload, Loader2 } from "lucide-react";
+import { WifiOff, CloudUpload } from "lucide-react";
 import { subscribe, queueSize, flushQueue } from "../services/offlineQueue";
 import { useToast } from "../context/ToastContext";
 
@@ -7,7 +7,6 @@ export default function OfflineBar() {
   const toast = useToast();
   const [online, setOnline] = useState(navigator.onLine);
   const [pending, setPending] = useState(queueSize());
-  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     const unsub = subscribe(setPending);
@@ -32,13 +31,12 @@ export default function OfflineBar() {
   if (online && !pending) return null;
 
   const sync = async () => {
-    setSyncing(true);
     try {
       const { synced, remaining } = await flushQueue();
       if (synced) toast.success(`Synced ${synced} offline ${synced === 1 ? "operation" : "operations"}`);
       if (remaining) toast.error(`${remaining} operations still pending`);
-    } finally {
-      setSyncing(false);
+    } catch {
+      /* noop */
     }
   };
 
@@ -55,18 +53,14 @@ export default function OfflineBar() {
           <span className="opacity-80">
             {pending} {pending === 1 ? "operation" : "operations"} waiting to sync
           </span>
-          <button
-            onClick={sync}
-            disabled={syncing || !online}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-white/15 hover:bg-white/25 disabled:opacity-50 px-2.5 py-1 text-xs font-semibold"
-          >
-            {syncing ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
+            <button
+              onClick={sync}
+              disabled={!online}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-white/15 hover:bg-white/25 disabled:opacity-50 px-2.5 py-1 text-xs font-semibold"
+            >
               <CloudUpload className="w-3.5 h-3.5" />
-            )}
-            Sync now
-          </button>
+              Sync now
+            </button>
         </>
       )}
     </div>
