@@ -76,13 +76,33 @@ async function listUsers(businessId) {
     orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
     select: {
       id: true, name: true, email: true, phone: true, role: true,
+      customRoleId: true,
+      customRole: { select: { id: true, name: true } },
       isActive: true, lastLoginAt: true, createdAt: true,
     },
   });
   return users;
 }
 
-async function createUser(businessId, data) {
+/** Validates a roleId belongs to this business; throws if not. */
+async function validateRole(businessId, roleId) {
+  if (!roleId) return null;
+  const role = await prisma.role.findFirst({ where: { id: roleId, businessId } });
+  if (!role) throw new ApiError(400, "Selected role does not exist in your business");
+  return role.id;
+}
+
+async function createUser(actor, data) {
+  // Assigning roles (built-in or custom) is reserved for the OWNER.
+  let role = data.role;
+  let customRoleId = null;
+  if (actor.role !== "OWNER") {
+    throw new ApiError(403, "Only the business owner can add team members");
+  }
+  if (data.roleId) {
+    customRoleId = await validateRole(actor.businessId, data.roleId);
+    role = undefined;
+  }
   const exists = await prisma.user.findUnique({ where: { email: data.email } });
   if (exists) throw new ApiError(409, "A user with this email already exists");
   const user = await prisma.user.create({
@@ -91,8 +111,9 @@ async function createUser(businessId, data) {
       email: data.email,
       phone: data.phone || null,
       passwordHash: await bcrypt.hash(data.password, 12),
-      role: data.role,
-      businessId,
+      ...(role ? { role } : {}),
+      ...(customRoleId ? { customRoleId } : {}),
+      businessId: actor.businessId,
     },
   });
   const { passwordHash, ...safe } = user;
@@ -112,10 +133,31 @@ async function updateUser(actor, userId, data) {
     throw new ApiError(400, "You cannot disable your own account");
   }
 
-  await prisma.user.update({ where: { id: target.id }, data });
+  const payload = {};
+  if (data.name !== undefined) payload.name = data.name;
+  if (data.phone !== undefined) payload.phone = data.phone || null;
+  if (data.isActive !== undefined) payload.isActive = data.isActive;
+
+  // Role changes — built-in OR custom — are owner-only.
+  if (data.roleId !== undefined || data.role !== undefined) {
+    if (actor.role !== "OWNER") {
+      throw new ApiError(403, "Only the business owner can change a member's role");
+    }
+    if (data.roleId === null) {
+      payload.customRoleId = null;
+    } else if (data.roleId) {
+      payload.customRoleId = await validateRole(actor.businessId, data.roleId);
+      payload.role = target.role === "OWNER" ? "OWNER" : "EMPLOYEE";
+    } else if (data.role) {
+      payload.role = data.role;
+      payload.customRoleId = null;
+    }
+  }
+
+  await prisma.user.update({ where: { id: target.id }, data: payload });
   return prisma.user.findUnique({
     where: { id: target.id },
-    select: { id: true, name: true, email: true, phone: true, role: true, isActive: true, lastLoginAt: true },
+    select: { id: true, name: true, email: true, phone: true, role: true, customRoleId: true, customRole: { select: { id: true, name: true } }, isActive: true, lastLoginAt: true },
   });
 }
 

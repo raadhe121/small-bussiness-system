@@ -126,7 +126,7 @@ async function createSale(user, data) {
     // 1) Lock all product rows up-front (sorted to avoid deadlocks)
     const sortedIds = [...new Set(data.items.map((i) => i.productId))].sort();
     for (const pid of sortedIds) {
-      await tx.$queryRaw`SELECT id FROM Product WHERE id = ${pid} AND businessId = ${user.businessId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${pid} AND "businessId" = ${user.businessId} FOR UPDATE`;
     }
     const products = await tx.product.findMany({
       where: { id: { in: sortedIds }, businessId: user.businessId },
@@ -331,7 +331,7 @@ async function createPurchase(user, data) {
   return prisma.$transaction(async (tx) => {
     const sortedIds = [...new Set(data.items.map((i) => i.productId))].sort();
     for (const pid of sortedIds) {
-      await tx.$queryRaw`SELECT id FROM Product WHERE id = ${pid} AND businessId = ${user.businessId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${pid} AND "businessId" = ${user.businessId} FOR UPDATE`;
     }
     const products = await tx.product.findMany({
       where: { id: { in: sortedIds }, businessId: user.businessId },

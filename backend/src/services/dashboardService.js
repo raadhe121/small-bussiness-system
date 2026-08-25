@@ -104,12 +104,12 @@ async function getDashboard(businessId) {
 }
 
 async function dailySum(table, dateColumn, columns, businessId, from, to) {
-  const sums = columns.map((c) => `COALESCE(SUM(\`${c}\`),0) AS \`${c}\``).join(", ");
+  const sums = columns.map((c) => `COALESCE(SUM("${c}"),0) AS "${c}"`).join(", ");
   const rows = await prisma.$queryRawUnsafe(
-    `SELECT DATE(\`${dateColumn}\`) AS \`day\`, ${sums}
-     FROM \`${table}\`
-     WHERE \`businessId\` = ? AND \`${dateColumn}\` >= ? AND \`${dateColumn}\` < ?
-     GROUP BY DATE(\`${dateColumn}\`)`,
+    `SELECT DATE("${dateColumn}") AS day, ${sums}
+     FROM "${table}"
+     WHERE "businessId" = $1 AND "${dateColumn}" >= $2 AND "${dateColumn}" < $3
+     GROUP BY DATE("${dateColumn}")`,
     businessId, from, to
   );
   // Format using server-local calendar date to match MySQL's DATE().

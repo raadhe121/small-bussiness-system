@@ -14,12 +14,12 @@ function dayBounds(dateLike) {
 
 /** Groups daily totals using raw SQL (safe, parameterized). */
 async function dailyTotals(table, dateColumn, sumColumns, businessId, from, to) {
-  const sums = sumColumns.map((c) => `COALESCE(SUM(\`${c}\`),0) AS \`${c}\``).join(", ");
+  const sums = sumColumns.map((c) => `COALESCE(SUM("${c}"),0) AS "${c}"`).join(", ");
   const rows = await prisma.$queryRawUnsafe(
-    `SELECT DATE(\`${dateColumn}\`) AS day, ${sums}, COUNT(*) AS count
-     FROM \`${table}\`
-     WHERE \`businessId\` = ? AND \`${dateColumn}\` >= ? AND \`${dateColumn}\` < ?
-     GROUP BY DATE(\`${dateColumn}\`)
+    `SELECT DATE("${dateColumn}") AS day, ${sums}, COUNT(*) AS count
+     FROM "${table}"
+     WHERE "businessId" = $1 AND "${dateColumn}" >= $2 AND "${dateColumn}" < $3
+     GROUP BY DATE("${dateColumn}")
      ORDER BY day ASC`,
     businessId, from, to
   );

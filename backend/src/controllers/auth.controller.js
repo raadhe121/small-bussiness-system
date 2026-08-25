@@ -17,13 +17,15 @@ async function login(req, res, next) {
 
 async function me(req, res, next) {
   try {
-    const user = await authService.publicUser(
-      await require("../config/prisma").user.findUnique({
-        where: { id: req.user.id },
-        include: { business: { select: { id: true, name: true, currency: true, invoicePrefix: true, state: true, logoUrl: true } } },
-      })
-    );
-    ok(res, user);
+    const prisma = require("../config/prisma");
+    const record = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      include: {
+        business: { select: { id: true, name: true, currency: true, invoicePrefix: true, state: true, logoUrl: true } },
+        customRole: true,
+      },
+    });
+    ok(res, authService.publicUser(authService.withPermissions(record)));
   } catch (err) { next(err); }
 }
 

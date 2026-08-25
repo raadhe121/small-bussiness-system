@@ -78,20 +78,20 @@ async function getDashboard(businessId) {
     }),
     // last 14 days of daily sales + profit
     prisma.$queryRaw`
-      SELECT DATE(saleDate) as day,
-             SUM(grandTotal) as totalSales,
-             SUM(profit) as totalProfit,
+      SELECT DATE("saleDate") as day,
+             SUM("grandTotal") as totalSales,
+             SUM("profit") as totalProfit,
              COUNT(*) as orders
-      FROM Sale
-      WHERE businessId = ${businessId} AND saleDate >= ${new Date(todayStart.getTime() - 13 * 86400000)}
-      GROUP BY DATE(saleDate)
+      FROM "Sale"
+      WHERE "businessId" = ${businessId} AND "saleDate" >= ${new Date(todayStart.getTime() - 13 * 86400000)}
+      GROUP BY DATE("saleDate")
       ORDER BY day ASC
     `,
     prisma.$queryRaw`
-      SELECT DATE(expenseDate) as day, SUM(amount) as total
-      FROM Expense
-      WHERE businessId = ${businessId} AND expenseDate >= ${new Date(todayStart.getTime() - 13 * 86400000)}
-      GROUP BY DATE(expenseDate)
+      SELECT DATE("expenseDate") as day, SUM("amount") as total
+      FROM "Expense"
+      WHERE "businessId" = ${businessId} AND "expenseDate" >= ${new Date(todayStart.getTime() - 13 * 86400000)}
+      GROUP BY DATE("expenseDate")
       ORDER BY day ASC
     `,
   ]);
@@ -152,11 +152,11 @@ async function salesReport(businessId, range) {
   const [summary, byDay, topProducts] = await Promise.all([
     prisma.sale.aggregate({ where, _sum: { grandTotal: true, paidAmount: true, dueAmount: true, totalTax: true, discount: true }, _count: true }),
     prisma.$queryRaw`
-      SELECT DATE(saleDate) as day, SUM(grandTotal) as total, COUNT(*) as orders, SUM(profit) as profit
-      FROM Sale WHERE businessId = ${businessId}
-        AND saleDate >= ${range.gte ?? new Date(0)}
-        ${range.lt ? Prisma.sql`AND saleDate < ${range.lt}` : Prisma.empty}
-      GROUP BY DATE(saleDate) ORDER BY day DESC LIMIT 120
+      SELECT DATE("saleDate") as day, SUM("grandTotal") as total, COUNT(*) as orders, SUM("profit") as profit
+      FROM "Sale" WHERE "businessId" = ${businessId}
+        AND "saleDate" >= ${range.gte ?? new Date(0)}
+        ${range.lt ? Prisma.sql`AND "saleDate" < ${range.lt}` : Prisma.empty}
+      GROUP BY DATE("saleDate") ORDER BY day DESC LIMIT 120
     `,
     prisma.saleItem.groupBy({
       by: ["productName"],
@@ -327,16 +327,16 @@ async function gstSummary(businessId, range) {
       _sum: { totalTax: true },
     }),
     prisma.$queryRaw`
-      SELECT si.taxRate AS taxRate,
-             SUM(si.quantity * si.rate - si.discount) AS taxableAmount,
-             SUM(si.taxAmount) AS taxAmount
-      FROM SaleItem si
-      JOIN Sale s ON s.id = si.saleId
-      WHERE s.businessId = ${businessId}
-        AND s.saleDate >= ${range.gte ?? new Date(0)}
-        ${range.lt ? Prisma.sql`AND s.saleDate < ${range.lt}` : Prisma.empty}
-      GROUP BY si.taxRate
-      ORDER BY si.taxRate ASC
+      SELECT si."taxRate" AS taxRate,
+             SUM(si."quantity" * si."rate" - si."discount") AS taxableAmount,
+             SUM(si."taxAmount") AS taxAmount
+      FROM "SaleItem" si
+      JOIN "Sale" s ON s.id = si."saleId"
+      WHERE s."businessId" = ${businessId}
+        AND s."saleDate" >= ${range.gte ?? new Date(0)}
+        ${range.lt ? Prisma.sql`AND s."saleDate" < ${range.lt}` : Prisma.empty}
+      GROUP BY si."taxRate"
+      ORDER BY si."taxRate" ASC
     `,
   ]);
 

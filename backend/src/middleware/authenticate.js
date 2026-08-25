@@ -22,15 +22,21 @@ async function authenticate(req, _res, next) {
 
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      include: { business: { select: { id: true, name: true, currency: true, invoicePrefix: true, state: true, logoUrl: true } } },
+      include: {
+        business: { select: { id: true, name: true, currency: true, invoicePrefix: true, state: true, logoUrl: true } },
+        customRole: true,
+      },
     });
     if (!user || !user.isActive) throw new ApiError(401, "Account is disabled or no longer exists");
 
+    const { resolvePermissions } = require("../config/permissions");
     req.user = {
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
+      isPlatformAdmin: !!user.isPlatformAdmin,
+      permissions: resolvePermissions(user),
       businessId: user.businessId,
       business: user.business,
     };

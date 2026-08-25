@@ -32,7 +32,7 @@ async function listUsers(req, res, next) {
 
 async function createUser(req, res, next) {
   try {
-    const user = await businessService.createUser(req.user.businessId, req.body);
+    const user = await businessService.createUser(req.user, req.body);
     created(res, user, "Team member added");
   } catch (err) { next(err); }
 }

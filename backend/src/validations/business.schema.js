@@ -35,12 +35,14 @@ const userCreateSchema = z.object({
   phone: phone.optional().or(z.literal("")),
   password: z.string().min(8, "Password must be at least 8 characters").max(72),
   role: z.enum(["ADMIN", "MANAGER", "EMPLOYEE", "ACCOUNTANT"]),
+  roleId: z.string().uuid().optional().or(z.literal("")),
 });
 
 const userUpdateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   phone: phone.optional().or(z.literal("")),
   role: z.enum(["ADMIN", "MANAGER", "EMPLOYEE", "ACCOUNTANT"]).optional(),
+  roleId: z.string().uuid().nullable().optional(),
   isActive: z.boolean().optional(),
 }).refine((d) => Object.keys(d).length > 0, { message: "Provide at least one field to update" });
 

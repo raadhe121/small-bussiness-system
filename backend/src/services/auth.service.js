@@ -13,6 +13,9 @@ const publicUser = (u) => ({
   email: u.email,
   phone: u.phone,
   role: u.role,
+  isPlatformAdmin: !!u.isPlatformAdmin,
+  customRole: u.customRole ? { id: u.customRole.id, name: u.customRole.name } : null,
+  permissions: u.permissions || null,
   isActive: u.isActive,
   businessId: u.businessId,
   business: u.business
@@ -26,6 +29,12 @@ const publicUser = (u) => ({
     : null,
   lastLoginAt: u.lastLoginAt,
 });
+
+/** Attaches the effective permission list to a user object. */
+function withPermissions(user) {
+  const { resolvePermissions } = require("../config/permissions");
+  return { ...user, permissions: resolvePermissions(user) };
+}
 
 async function register({ name, email, phone, password }) {
   const exists = await prisma.user.findUnique({ where: { email } });
@@ -47,7 +56,10 @@ async function register({ name, email, phone, password }) {
 async function login({ email, password }) {
   const user = await prisma.user.findUnique({
     where: { email },
-    include: { business: { select: { id: true, name: true, currency: true, invoicePrefix: true, state: true, logoUrl: true } } },
+    include: {
+      business: { select: { id: true, name: true, currency: true, invoicePrefix: true, state: true, logoUrl: true } },
+      customRole: true,
+    },
   });
   if (!user) throw new ApiError(401, "Invalid email or password");
   const valid = await bcrypt.compare(password, user.passwordHash);
@@ -55,7 +67,7 @@ async function login({ email, password }) {
   if (!user.isActive) throw new ApiError(403, "Your account has been disabled");
 
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-  return { token: issueToken(user), user: publicUser(user) };
+  return { token: issueToken(user), user: publicUser(withPermissions(user)) };
 }
 
 function issueToken(user) {
@@ -128,4 +140,5 @@ module.exports = {
   changePassword,
   updateProfile,
   publicUser,
+  withPermissions,
 };

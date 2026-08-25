@@ -1,6 +1,6 @@
 const { Router } = require("express");
 const { authenticate, requireBusiness } = require("../middleware/authenticate");
-const { authorize } = require("../middleware/authorize");
+const { authorize, requireOwner, requirePlatformAdmin } = require("../middleware/authorize");
 const { validate } = require("../middleware/validate");
 const z = require("zod");
 
@@ -20,6 +20,8 @@ const partyC = require("../controllers/party.controller");
 const salesC = require("../controllers/sales.controller");
 const expC = require("../controllers/expense.controller");
 const analyticsC = require("../controllers/analytics.controller");
+const roleC = require("../controllers/role.controller");
+const platformC = require("../controllers/platform.controller");
 
 // UUID param validator
 const idParam = validate({ params: z.object({ id: z.string().uuid() }) });
@@ -50,6 +52,31 @@ module.exports = function apiRouter() {
   router.use(authenticate);
   router.post("/business", validate({ body: bizV.businessSchema }), bizC.createBusiness);
 
+  // ---- Platform admin panel (cross-tenant back-office, no tenant required) ----
+  const platform = Router();
+  platform.use(requirePlatformAdmin);
+  platform.get("/overview", platformC.overview);
+  const pBizBody = z.object({
+    name: z.string().trim().min(2).max(160).optional(),
+    ownerName: z.string().trim().min(2).max(160).optional(),
+    phone: z.string().trim().min(6).max(20).optional(),
+    email: z.string().trim().email().or(z.literal("")).optional(),
+    gstin: z.string().trim().max(15).optional(),
+    isActive: z.boolean().optional(),
+  });
+  platform.get("/businesses", platformC.listBusinesses);
+  platform.get("/businesses/:id", idParam, platformC.getBusiness);
+  platform.put("/businesses/:id", idParam, validate({ body: pBizBody }), platformC.updateBusiness);
+  platform.delete("/businesses/:id", idParam, platformC.deleteBusiness);
+  const pUserBody = z.object({
+    isActive: z.boolean().optional(),
+    role: z.enum(["OWNER", "ADMIN", "MANAGER", "EMPLOYEE", "ACCOUNTANT"]).optional(),
+  });
+  platform.get("/users", platformC.listUsers);
+  platform.put("/users/:id", idParam, validate({ body: pUserBody }), platformC.updateUser);
+  platform.delete("/users/:id", idParam, platformC.deleteUser);
+  router.use("/platform", platform);
+
   // Everything below requires a business tenant.
   router.use(requireBusiness);
 
@@ -63,8 +90,24 @@ module.exports = function apiRouter() {
   users.post("/", authorize("users", "manage"), validate({ body: bizV.userCreateSchema }), bizC.createUser);
   users.put("/:id", authorize("users", "manage"), idParam, validate({ body: bizV.userUpdateSchema }), bizC.updateUser);
   users.get("/:id/activity", authorize("users", "manage"), idParam, bizC.getUserActivity);
+  router.use("/users", users);
+
   router.use("/business", business);
   router.use("/users", users);
+
+  // ---- Roles & permissions (view: users:manage · edit/delete: OWNER only) ----
+  const roleBody = z.object({
+    name: z.string().trim().min(2).max(80),
+    description: z.string().trim().max(255).optional(),
+    permissions: z.array(z.string()).min(1, "Select at least one permission"),
+  });
+  const roles = Router();
+  roles.get("/", authorize("users", "manage"), roleC.listRoles);
+  roles.get("/catalog", authenticate, requireBusiness, roleC.permissionCatalog);
+  roles.post("/", requireOwner, validate({ body: roleBody }), roleC.createRole);
+  roles.put("/:id", requireOwner, idParam, validate({ body: roleBody.partial() }), roleC.updateRole);
+  roles.delete("/:id", requireOwner, idParam, roleC.deleteRole);
+  router.use("/roles", roles);
 
   // ---- Categories ----
   router.get("/categories", authorize("categories", "view"), catC.listCategories);

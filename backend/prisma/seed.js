@@ -33,17 +33,73 @@ async function main() {
   console.log("Seeding demo data...");
   const passwordHash = await bcrypt.hash("Demo@1234", 10);
 
-  // Idempotent: wipe all previous data (order-safe via FK checks toggle).
-  await prisma.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 0");
+  // Idempotent: wipe all previous data (CASCADE clears dependent tables).
   const tables = [
     "CustomerTransaction", "SupplierTransaction", "InventoryTransaction", "Notification",
     "SaleItem", "Sale", "PurchaseItem", "Purchase", "Payment", "Expense", "ExpenseCategory",
-    "Inventory", "Product", "Category", "Customer", "Supplier", "User", "Business",
+    "Inventory", "Product", "Category", "Customer", "Supplier", "User", "Business", "Role",
   ];
-  for (const t of tables) {
-    await prisma.$executeRawUnsafe(`TRUNCATE TABLE \`${t}\``);
+  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tables.map((t) => `"${t}"`).join(", ")} CASCADE`);
+
+  // Platform administrator (back-office, belongs to no business)
+  const adminHash = await bcrypt.hash("Admin@1234", 10);
+  await prisma.user.create({
+    data: {
+      name: "Platform Admin",
+      email: "admin@businesshub.in",
+      phone: "+919000000001",
+      passwordHash: adminHash,
+      role: "OWNER",
+      isPlatformAdmin: true,
+    },
+  });
+
+  // A couple of extra tenants so the platform panel has content.
+  const otherBiz = [
+    {
+      business: {
+        name: "Gupta Electronics",
+        ownerName: "Suresh Gupta",
+        phone: "+919812345670",
+        email: "owner@guptaelectronics.in",
+        city: "Delhi",
+        state: "Delhi",
+        pincode: "110001",
+        gstin: "07AAACG1234H1ZK",
+        businessType: "ELECTRONICS",
+        invoicePrefix: "GE",
+      },
+      ownerEmail: "suresh@guptaelectronics.in",
+    },
+    {
+      business: {
+        name: "Lakshmi Textiles",
+        ownerName: "Meena Lakshmi",
+        phone: "+919898765432",
+        email: "owner@lakshmitextiles.in",
+        city: "Chennai",
+        state: "Tamil Nadu",
+        pincode: "600001",
+        gstin: "33AAGCL9876M1ZP",
+        businessType: "TEXTILES",
+        invoicePrefix: "LT",
+      },
+      ownerEmail: "meena@lakshmitextiles.in",
+    },
+  ];
+  for (const { business, ownerEmail } of otherBiz) {
+    const b = await prisma.business.create({ data: business });
+    await prisma.user.create({
+      data: {
+        name: business.ownerName,
+        email: ownerEmail,
+        passwordHash,
+        role: "OWNER",
+        businessId: b.id,
+        phone: business.phone,
+      },
+    });
   }
-  await prisma.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 1");
 
   const business = await prisma.business.create({
     data: {
@@ -458,8 +514,9 @@ async function main() {
   console.log("\n✅ Seed complete!");
   console.log("──────────────────────────────────────────────────");
   console.log("Demo login credentials:");
-  console.log("  OWNER      : demo@businesshub.in      / Demo@1234");
-  console.log("  MANAGER    : manager@businesshub.in   / Demo@1234");
+  console.log("  PLATFORM ADMIN : admin@businesshub.in     / Admin@1234");
+  console.log("  OWNER          : demo@businesshub.in      / Demo@1234");
+  console.log("  MANAGER        : manager@businesshub.in   / Demo@1234");
   console.log("  ACCOUNTANT : accountant@businesshub.in/ Demo@1234");
   console.log("  EMPLOYEE   : employee@businesshub.in  / Demo@1234");
   console.log("──────────────────────────────────────────────────");

@@ -62,4 +62,65 @@ function hasPermission(role, permission) {
   return granted.includes(permission);
 }
 
-module.exports = { PERMISSIONS, hasPermission };
+/** Catalog of every grantable permission, grouped for the role editor UI. */
+const ALL_PERMISSIONS = [
+  { group: "General", items: [
+    { key: "dashboard:view", label: "View dashboard" },
+    { key: "search:use", label: "Use global search" },
+    { key: "notifications:view", label: "Receive notifications" },
+  ] },
+  { group: "Catalog", items: [
+    { key: "products:view", label: "View products" },
+    { key: "products:manage", label: "Add / edit / delete products" },
+    { key: "categories:view", label: "View categories" },
+    { key: "categories:manage", label: "Manage categories" },
+    { key: "inventory:view", label: "View inventory & stock" },
+    { key: "inventory:manage", label: "Adjust / transfer stock" },
+  ] },
+  { group: "People", items: [
+    { key: "customers:view", label: "View customers" },
+    { key: "customers:manage", label: "Manage customers" },
+    { key: "suppliers:view", label: "View suppliers" },
+    { key: "suppliers:manage", label: "Manage suppliers" },
+  ] },
+  { group: "Business", items: [
+    { key: "sales:view", label: "View sales" },
+    { key: "sales:create", label: "Create sales" },
+    { key: "purchases:view", label: "View purchases" },
+    { key: "purchases:create", label: "Create purchases" },
+    { key: "payments:view", label: "View payments" },
+    { key: "payments:create", label: "Record payments" },
+    { key: "expenses:view", label: "View expenses" },
+    { key: "expenses:manage", label: "Manage expenses" },
+    { key: "invoices:view", label: "View invoices" },
+  ] },
+  { group: "Insights", items: [
+    { key: "reports:view", label: "View reports" },
+    { key: "gst:view", label: "View GST summary" },
+  ] },
+  { group: "Administration", items: [
+    { key: "users:manage", label: "View team members" },
+    { key: "settings:manage", label: "Manage business settings" },
+    { key: "roles:manage", label: "Manage custom roles (owner area)" },
+  ] },
+];
+
+const ALL_PERMISSION_KEYS = ALL_PERMISSIONS.flatMap((g) => g.items.map((i) => i.key));
+
+/**
+ * Resolves a user's effective permission list.
+ * A custom role replaces the built-in matrix entirely; OWNER always gets "*".
+ */
+function resolvePermissions(user) {
+  if (user.role === "OWNER") return ["*"];
+  if (user.customRole && Array.isArray(user.customRole.permissions)) {
+    // Always keep baseline access so the app is usable.
+    return Array.from(new Set([
+      "dashboard:view", "notifications:view", "search:use",
+      ...user.customRole.permissions.filter((p) => ALL_PERMISSION_KEYS.includes(p)),
+    ]));
+  }
+  return PERMISSIONS[user.role] || [];
+}
+
+module.exports = { PERMISSIONS, hasPermission, ALL_PERMISSIONS, resolvePermissions };

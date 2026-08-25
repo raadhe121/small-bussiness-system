@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -100,6 +100,7 @@ model Business {
   updatedAt     DateTime  @updatedAt
 
   users               User[]
+  roles               Role[]
   categories          Category[]
   products            Product[]
   customers           Customer[]
@@ -125,6 +126,8 @@ model User {
   phone        String?   @db.VarChar(20)
   passwordHash String    @db.VarChar(255)
   role         UserRole  @default(EMPLOYEE)
+  isPlatformAdmin Boolean @default(false)
+  customRoleId String?   @db.Char(36)
   isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
   resetTokenHash String? @db.VarChar(255)
@@ -133,9 +136,29 @@ model User {
   updatedAt    DateTime  @updatedAt
 
   business Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customRole Role?   @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
   @@index([role])
+}
+
+// Custom (per-business) roles with granular permission lists.
+// If a user has customRoleId set, its permission list replaces the built-in role matrix.
+model Role {
+  id          String   @id @default(uuid()) @db.Char(36)
+  businessId  String   @db.Char(36)
+  name        String   @db.VarChar(80)
+  description String?  @db.VarChar(255)
+  permissions Json     @default("[]")
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users    User[]
+
+  @@unique([businessId, name])
+  @@index([businessId])
 }
 
 // ---------- Catalog ----------
@@ -330,7 +353,7 @@ model Sale {
   isInterState Boolean @default(false)
   paymentMethod PaymentMethod @default(CASH)
   notes       String?  @db.VarChar(500)
-  saleDate    DateTime @db.DateTime(3)
+  saleDate    DateTime
   createdById String?  @db.Char(36)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -379,7 +402,7 @@ model Purchase {
   dueAmount   Decimal  @default(0) @db.Decimal(14, 2)
   paymentMethod PaymentMethod @default(CASH)
   notes       String?  @db.VarChar(500)
-  purchaseDate DateTime @db.DateTime(3)
+  purchaseDate DateTime
   createdById String?  @db.Char(36)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -427,7 +450,7 @@ model Payment {
   method      PaymentMethod
   reference   String?  @db.VarChar(120)
   notes       String?  @db.VarChar(500)
-  paymentDate DateTime @db.DateTime(3)
+  paymentDate DateTime
   createdById String?  @db.Char(36)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -464,7 +487,7 @@ model Expense {
   reference         String?  @db.VarChar(120)
   receiptUrl        String?  @db.VarChar(500)
   description       String?  @db.VarChar(500)
-  expenseDate       DateTime @db.DateTime(3)
+  expenseDate       DateTime
   createdById       String?  @db.Char(36)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

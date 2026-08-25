@@ -12,7 +12,7 @@ const { round2, add, sub } = require("../utils/money");
 
 async function lockProduct(tx, businessId, productId) {
   const rows = await tx.$queryRaw`
-    SELECT id FROM Product WHERE id = ${productId} AND businessId = ${businessId} FOR UPDATE
+    SELECT id FROM "Product" WHERE id = ${productId} AND "businessId" = ${businessId} FOR UPDATE
   `;
   if (!rows.length) throw new ApiError(404, "Product not found");
 }
