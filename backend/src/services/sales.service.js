@@ -469,6 +469,234 @@ async function getPurchase(businessId, id) {
   return getPurchaseInTx(prisma, businessId, id);
 }
 
+// ---------- SALES RETURNS / REFUNDS ----------
+
+function serializeReturn(r) {
+  const num = (v) => (v instanceof Prisma.Decimal ? v.toNumber() : Number(v));
+  return {
+    ...r,
+    subtotal: num(r.subtotal),
+    totalTax: num(r.totalTax),
+    refundTotal: num(r.refundTotal),
+    dueAdjusted: num(r.dueAdjusted),
+    cashRefunded: num(r.cashRefunded),
+    items: r.items?.map((i) => ({ ...i, quantity: num(i.quantity), rate: num(i.rate), taxRate: num(i.taxRate), taxAmount: num(i.taxAmount), refundAmount: num(i.refundAmount) })) ?? undefined,
+  };
+}
+
+async function generateReturnNo(tx, businessId) {
+  const last = await tx.saleReturn.findFirst({
+    where: { businessId },
+    orderBy: { createdAt: "desc" },
+    select: { returnNo: true },
+  });
+  let seq = 0;
+  if (last?.returnNo) {
+    const m = last.returnNo.match(/(\d+)$/);
+    if (m) seq = parseInt(m[1], 10);
+  }
+  let candidate;
+  do {
+    seq += 1;
+    candidate = `RET-${String(seq).padStart(5, "0")}`;
+  } while (
+    await tx.saleReturn.findFirst({ where: { businessId, returnNo: candidate }, select: { id: true } })
+  );
+  return candidate;
+}
+
+/**
+ * Return items from an existing sale.
+ * - Restocks returned quantities
+ * - Settles refund first against the sale's outstanding due (customer credit note)
+ * - Refunds any remainder via CASH/UPI/CARD as a PAID payment record
+ */
+async function createSaleReturn(user, saleId, data) {
+  const sale = await prisma.sale.findFirst({
+    where: { id: saleId, businessId: user.businessId },
+    include: { items: true },
+  });
+  if (!sale) throw new ApiError(404, "Sale not found");
+  const itemMap = new Map(sale.items.map((i) => [i.id, i]));
+
+  // How much of each line has already been returned?
+  const returnedRows = await prisma.saleReturnItem.groupBy({
+    by: ["saleItemId"],
+    where: { saleItemId: { in: sale.items.map((i) => i.id) }, return: { businessId: user.businessId } },
+    _sum: { quantity: true },
+  });
+  const returnedMap = new Map(returnedRows.map((r) => [r.saleItemId, r._sum.quantity.toNumber()]));
+
+  // Validate + compute per-line refunds (lineTotal includes item discount & tax,
+  // so the refund is the exact amount the customer paid for those units).
+  let subtotal = 0;
+  let totalTax = 0;
+  let refundTotal = 0;
+  const lines = data.items.map((it) => {
+    const si = itemMap.get(it.saleItemId);
+    if (!si) throw new ApiError(400, "A return line does not belong to this sale");
+    const remaining = si.quantity.toNumber() - (returnedMap.get(si.id) || 0);
+    if (it.quantity > remaining) {
+      throw new ApiError(400, `Only ${remaining} × "${si.productName}" can still be returned`);
+    }
+    const qtySold = si.quantity.toNumber();
+    const unitRefund = si.lineTotal.toNumber() / qtySold;
+    const refundAmount = round2(mul(unitRefund, it.quantity));
+    subtotal = add(subtotal, round2(mul(si.rate.toNumber(), it.quantity)));
+    totalTax = add(totalTax, round2(mul(si.taxAmount.toNumber() / qtySold, it.quantity)));
+    refundTotal = add(refundTotal, refundAmount);
+    return {
+      saleItemId: si.id,
+      productId: si.productId,
+      productName: si.productName,
+      quantity: it.quantity,
+      rate: si.rate.toNumber(),
+      taxRate: si.taxRate.toNumber(),
+      taxAmount: round2(mul(si.taxAmount.toNumber() / qtySold, it.quantity)),
+      refundAmount,
+    };
+  });
+
+  const method = data.method || "CASH";
+  if (!["CASH", "UPI", "CARD", "BANK_TRANSFER", "OTHER"].includes(method)) {
+    throw new ApiError(400, "Invalid refund method");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    // Lock product rows before touching stock
+    const sortedIds = [...new Set(lines.map((l) => l.productId))].sort();
+    for (const pid of sortedIds) {
+      await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${pid} AND "businessId" = ${user.businessId} FOR UPDATE`;
+    }
+    const products = await tx.product.findMany({
+      where: { id: { in: sortedIds }, businessId: user.businessId },
+      select: { id: true, currentStock: true },
+    });
+    const stockMap = new Map(products.map((p) => [p.id, p.currentStock.toNumber()]));
+
+    const returnNo = await generateReturnNo(tx, user.businessId);
+    const header = await tx.saleReturn.create({
+      data: {
+        businessId: user.businessId,
+        returnNo,
+        saleId: sale.id,
+        customerId: sale.customerId,
+        subtotal: new Prisma.Decimal(String(round2(subtotal))),
+        totalTax: new Prisma.Decimal(String(round2(totalTax))),
+        refundTotal: new Prisma.Decimal(String(refundTotal)),
+        method,
+        reason: data.reason || null,
+        returnDate: data.returnDate ? new Date(data.returnDate) : new Date(),
+        createdById: user.id,
+      },
+    });
+
+    for (const l of lines) {
+      await tx.saleReturnItem.create({
+        data: {
+          returnId: header.id,
+          saleItemId: l.saleItemId,
+          productId: l.productId,
+          productName: l.productName,
+          quantity: new Prisma.Decimal(String(l.quantity)),
+          rate: new Prisma.Decimal(String(l.rate)),
+          taxRate: new Prisma.Decimal(String(l.taxRate)),
+          taxAmount: new Prisma.Decimal(String(l.taxAmount)),
+          refundAmount: new Prisma.Decimal(String(l.refundAmount)),
+        },
+      });
+      const current = stockMap.get(l.productId) ?? 0;
+      await applyStockChange(tx, {
+        businessId: user.businessId,
+        productId: l.productId,
+        type: "STOCK_IN",
+        quantity: l.quantity,
+        balanceAfter: round2(current + l.quantity),
+        referenceType: "SALE_RETURN",
+        referenceId: header.id,
+        note: `Returned on ${returnNo} (${sale.invoiceNo})`,
+        userId: user.id,
+      });
+    }
+
+    // Settle against outstanding due first, refund remainder
+    const due = sale.dueAmount.toNumber();
+    const dueAdjusted = round2(Math.min(due, refundTotal));
+    const cashRefunded = round2(sub(refundTotal, dueAdjusted));
+
+    if (dueAdjusted > 0) {
+      if (!sale.customerId) throw new ApiError(400, "Cannot adjust due on a walk-in sale");
+      const customer = await tx.customer.update({
+        where: { id: sale.customerId },
+        data: { outstanding: { decrement: new Prisma.Decimal(String(dueAdjusted)) } },
+      });
+      await tx.customerTransaction.create({
+        data: {
+          businessId: user.businessId,
+          customerId: sale.customerId,
+          type: "ADJUSTMENT",
+          amount: new Prisma.Decimal(String(dueAdjusted)),
+          balanceAfter: customer.outstanding,
+          referenceType: "SALE_RETURN",
+          referenceId: header.id,
+          note: `Credit note ${returnNo} against ${sale.invoiceNo}`,
+        },
+      });
+      await tx.sale.update({ where: { id: sale.id }, data: { dueAmount: { decrement: new Prisma.Decimal(String(dueAdjusted)) } } });
+    }
+
+    if (cashRefunded > 0) {
+      await tx.payment.create({
+        data: {
+          businessId: user.businessId,
+          direction: "PAID",
+          partyType: "SALE_RETURN",
+          customerId: sale.customerId || null,
+          saleId: sale.id,
+          amount: new Prisma.Decimal(String(cashRefunded)),
+          method,
+          reference: `Refund ${returnNo} for ${sale.invoiceNo}`,
+          notes: data.reason || null,
+          paymentDate: new Date(),
+          createdById: user.id,
+        },
+      });
+    }
+
+    await tx.saleReturn.update({
+      where: { id: header.id },
+      data: { dueAdjusted: new Prisma.Decimal(String(dueAdjusted)), cashRefunded: new Prisma.Decimal(String(cashRefunded)) },
+    });
+
+    const full = await tx.saleReturn.findUnique({ where: { id: header.id }, include: { items: true } });
+    return serializeReturn(full);
+  });
+}
+
+async function listReturns(businessId, query) {
+  const { page, limit, skip, take } = parsePagination(query);
+  const where = {
+    businessId,
+    ...(query.search ? { OR: [
+      { returnNo: { contains: query.search } },
+      ...(query.search.length >= 3 ? [{ sale: { invoiceNo: { contains: query.search } } }] : []),
+    ] } : {}),
+    ...(query.from || query.to ? { returnDate: { gte: query.from, lte: query.to } } : {}),
+  };
+  const [items, total] = await Promise.all([
+    prisma.saleReturn.findMany({
+      where, skip, take,
+      orderBy: { returnDate: "desc" },
+      include: {
+        customer: { select: { id: true, name: true } },
+        sale: { select: { id: true, invoiceNo: true } },
+      },
+    }),
+    prisma.saleReturn.count({ where }),
+  ]);
+  return { items: items.map(serializeReturn), meta: buildMeta({ page, limit }, total) };
+}
+
 module.exports = {
   computeTotals,
   createSale,
@@ -477,4 +705,6 @@ module.exports = {
   createPurchase,
   listPurchases,
   getPurchase,
+  createSaleReturn,
+  listReturns,
 };

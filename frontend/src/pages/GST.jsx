@@ -3,7 +3,7 @@ import { Percent, FileSpreadsheet } from "lucide-react";
 import api from "../services/api";
 import useFetch from "../hooks/useFetch";
 import PageHeader from "../components/PageHeader";
-import Spinner from "../components/Spinner";
+import { TableSkeleton } from "../components/Skeleton";
 import { inr } from "../utils/format";
 
 const PRESETS = [["this_month", "This month"], ["today", "Today"], ["this_week", "This week"]];
@@ -52,7 +52,7 @@ export default function GST() {
       </div>
 
       {loading ? (
-        <Spinner className="block mx-auto my-16" />
+        <div className="card"><TableSkeleton rows={5} cols={5} /></div>
       ) : error || !data ? (
         <div className="card p-8 text-center text-slate-500">Could not load GST summary. Please try again.</div>
       ) : (

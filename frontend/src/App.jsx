@@ -23,6 +23,8 @@ import Suppliers from "./pages/Suppliers";
 import SupplierDetail from "./pages/SupplierDetail";
 import Sales from "./pages/Sales";
 import NewSale from "./pages/NewSale";
+import PosPage from "./pages/PosPage";
+import SalesReturn from "./pages/SalesReturn";
 import Purchases from "./pages/Purchases";
 import NewPurchase from "./pages/NewPurchase";
 import Payments from "./pages/Payments";
@@ -64,6 +66,8 @@ export default function App() {
         <Route path="/suppliers/:id" element={<PermissionGate permission="suppliers:view"><SupplierDetail /></PermissionGate>} />
         <Route path="/sales" element={<PermissionGate permission="sales:view"><Sales /></PermissionGate>} />
         <Route path="/sales/new" element={<PermissionGate permission="sales:create"><NewSale /></PermissionGate>} />
+        <Route path="/pos" element={<PermissionGate permission="sales:create"><PosPage /></PermissionGate>} />
+        <Route path="/sales/:id/return" element={<PermissionGate permission="sales:create"><SalesReturn /></PermissionGate>} />
         <Route path="/purchases" element={<PermissionGate permission="purchases:view"><Purchases /></PermissionGate>} />
         <Route path="/purchases/new" element={<PermissionGate permission="purchases:create"><NewPurchase /></PermissionGate>} />
         <Route path="/payments" element={<PermissionGate permission="payments:view"><Payments /></PermissionGate>} />

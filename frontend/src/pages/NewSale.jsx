@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { submitOrQueue } from "../services/offlineQueue";
 import { Link, useNavigate } from "react-router-dom";
 import { Trash2, Plus, ShoppingCart } from "lucide-react";
 import api, { errMsg } from "../services/api";
@@ -89,24 +90,31 @@ export default function NewSale() {
     }
 
     setSaving(true);
+    const payload = {
+      customerId: customerId || null,
+      items: valid.map((l) => ({
+        productId: l.productId,
+        quantity: Number(l.quantity),
+        rate: Number(l.rate),
+        discount: Number(l.discount || 0),
+        taxRate: productMap.get(l.productId)?.taxRate ?? 0,
+      })),
+      discount: Number(billDiscount || 0),
+      paymentMethod: dueAmount > 0 ? "CREDIT" : paymentMethod,
+      paidAmount,
+      notes: notes || undefined,
+      saleDate: new Date(`${saleDate}T12:00:00Z`).toISOString(),
+    };
+
     try {
-      const res = await api.post("/sales", {
-        customerId: customerId || null,
-        items: valid.map((l) => ({
-          productId: l.productId,
-          quantity: Number(l.quantity),
-          rate: Number(l.rate),
-          discount: Number(l.discount || 0),
-          taxRate: productMap.get(l.productId)?.taxRate ?? 0,
-        })),
-        discount: Number(billDiscount || 0),
-        paymentMethod: dueAmount > 0 ? "CREDIT" : paymentMethod,
-        paidAmount,
-        notes: notes || undefined,
-        saleDate: new Date(`${saleDate}T12:00:00Z`).toISOString(),
-      });
-      toast.success(`Sale completed — invoice ${res.data.data.invoiceNo}`);
-      navigate(`/invoices/${res.data.data.id}`);
+      const result = await submitOrQueue({ label: "New sale", url: "/sales", method: "POST", body: payload });
+      if (result.queued) {
+        toast.success("You're offline — sale queued and will sync automatically");
+        navigate("/sales");
+      } else {
+        toast.success(`Sale completed — invoice ${result.data.data.invoiceNo}`);
+        navigate(`/invoices/${result.data.data.id}`);
+      }
     } catch (err) {
       toast.error(errMsg(err));
     } finally {

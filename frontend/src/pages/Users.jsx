@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { UserCog, Plus, Pencil, Shield } from "lucide-react";
 import api, { errMsg } from "../services/api";
+import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/Modal";
-import Spinner from "../components/Spinner";
+import { TableSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { fmtDateTime, ROLE_LABELS } from "../utils/format";
@@ -47,13 +48,10 @@ export default function Users() {
     e.preventDefault();
     setSaving(true);
     try {
-      if (editItem) {
-        await api.put(`/users/${editItem.id}`, { name: form.name, phone: form.phone, ...rolePayload() });
-        toast.success("Team member updated");
-      } else {
-        await api.post("/users", { ...form, ...rolePayload() });
-        toast.success("Team member added — share the credentials securely");
-      }
+      const result = editItem
+        ? await submitOrQueue({ label: "Update team member", url: `/users/${editItem.id}`, method: "PUT", body: { name: form.name, phone: form.phone, ...rolePayload() } })
+        : await submitOrQueue({ label: "New team member", url: "/users", method: "POST", body: { ...form, ...rolePayload() } });
+      toast.success(result.queued ? "Change queued — will sync" : editItem ? "Team member updated" : "Team member added — share the credentials securely");
       setShowForm(false);
       refetch();
       refresh();
@@ -66,8 +64,8 @@ export default function Users() {
 
   const toggleActive = async () => {
     try {
-      await api.put(`/users/${disableTarget.id}`, { isActive: !disableTarget.isActive });
-      toast.success(disableTarget.isActive ? "Account disabled" : "Account enabled");
+      const result = await submitOrQueue({ label: "Toggle team member", url: `/users/${disableTarget.id}`, method: "PUT", body: { isActive: !disableTarget.isActive } });
+      toast.success(result.queued ? "Change queued — will sync" : disableTarget.isActive ? "Account disabled" : "Account enabled");
       setDisableTarget(null);
       refetch();
     } catch (err) {
@@ -93,7 +91,7 @@ export default function Users() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <Spinner className="block mx-auto my-14" />
+          <TableSkeleton />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">

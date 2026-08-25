@@ -18,6 +18,16 @@ async function getSale(req, res, next) {
   catch (err) { next(err); }
 }
 
+async function createSaleReturn(req, res, next) {
+  try { created(res, await salesService.createSaleReturn(req.user, req.params.id, req.body), "Sale return recorded"); }
+  catch (err) { next(err); }
+}
+
+async function listReturns(req, res, next) {
+  try { ok(res, await salesService.listReturns(req.user.businessId, req.query)); }
+  catch (err) { next(err); }
+}
+
 // ---- Purchases ----
 
 async function createPurchase(req, res, next) {
@@ -36,6 +46,6 @@ async function getPurchase(req, res, next) {
 }
 
 module.exports = {
-  createSale, listSales, getSale,
+  createSale, listSales, getSale, createSaleReturn, listReturns,
   createPurchase, listPurchases, getPurchase,
 };

@@ -35,6 +35,11 @@ async function getProduct(req, res, next) {
   catch (err) { next(err); }
 }
 
+async function getProductByBarcode(req, res, next) {
+  try { ok(res, await catalog.getProductByBarcode(req.user.businessId, req.params.code)); }
+  catch (err) { next(err); }
+}
+
 async function createProduct(req, res, next) {
   try { created(res, await catalog.createProduct(req.user.businessId, req.user.id, req.body), "Product created successfully"); }
   catch (err) { next(err); }
@@ -52,5 +57,5 @@ async function deleteProduct(req, res, next) {
 
 module.exports = {
   listCategories, createCategory, updateCategory, deleteCategory,
-  listProducts, getProduct, createProduct, updateProduct, deleteProduct,
+  listProducts, getProduct, getProductByBarcode, createProduct, updateProduct, deleteProduct,
 };

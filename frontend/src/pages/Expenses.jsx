@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { ReceiptIndianRupee, Plus, Pencil, Trash2 } from "lucide-react";
 import api, { errMsg } from "../services/api";
+import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import Spinner from "../components/Spinner";
+import { TableSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate, toInputDate } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
@@ -65,9 +66,17 @@ export default function Expenses() {
         amount: Number(form.amount),
         expenseDate: new Date(`${form.expenseDate}T12:00:00Z`).toISOString(),
       };
-      if (editItem) await api.put(`/expenses/${editItem.id}`, payload);
-      else await api.post("/expenses", payload);
-      toast.success(editItem ? "Expense updated" : "Expense recorded");
+      const result = await submitOrQueue({
+        label: editItem ? "Update expense" : "New expense",
+        url: editItem ? `/expenses/${editItem.id}` : "/expenses",
+        method: editItem ? "PUT" : "POST",
+        body: payload,
+      });
+      if (result.queued) {
+        toast.success("You're offline — expense queued and will sync automatically");
+      } else {
+        toast.success(editItem ? "Expense updated" : "Expense recorded");
+      }
       setShowForm(false);
       refetch();
     } catch (err) {
@@ -78,7 +87,8 @@ export default function Expenses() {
   const addCategory = async () => {
     if (!catName.trim()) return;
     try {
-      await api.post("/expenses/categories", { name: catName.trim() });
+      const result = await submitOrQueue({ label: "New expense category", url: "/expenses/categories", method: "POST", body: { name: catName.trim() } });
+      toast.success(result.queued ? "Category creation queued — will sync" : "Category added");
       setCatName("");
       refetchCategories();
       toast.success("Category added");
@@ -99,7 +109,7 @@ export default function Expenses() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <Spinner className="block mx-auto my-14" />
+          <TableSkeleton />
         ) : data.items.length === 0 ? (
           <EmptyState icon={ReceiptIndianRupee} title="No expenses yet" subtitle="Track rent, salaries, transport and more." action={canManage && <button className="btn-primary" onClick={openCreate}>Add Expense</button>} />
         ) : (
@@ -208,8 +218,8 @@ export default function Expenses() {
         confirmLabel="Delete"
         onConfirm={async () => {
           try {
-            await api.delete(`/expenses/${deleteTarget.id}`);
-            toast.success("Expense deleted");
+            const result = await submitOrQueue({ label: "Delete expense", url: `/expenses/${deleteTarget.id}`, method: "DELETE" });
+            toast.success(result.queued ? "Delete queued — will sync" : "Expense deleted");
             refetch();
           } catch (err) {
             toast.error(errMsg(err));

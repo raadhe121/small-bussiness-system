@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Wallet, Phone, Mail, MapPin, FileText } from "lucide-react";
 import api, { errMsg } from "../services/api";
+import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
 import Modal from "../components/Modal";
@@ -43,14 +44,19 @@ export default function PartyDetail({ mode }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post(`/payments/${isCustomer ? "customer" : "supplier"}`, {
-        ...(isCustomer ? { customerId: id } : { supplierId: id }),
-        amount: Number(payForm.amount),
-        method: payForm.method,
-        reference: payForm.reference || undefined,
-        notes: payForm.notes || undefined,
+      const result = await submitOrQueue({
+        label: "Payment",
+        url: `/payments/${isCustomer ? "customer" : "supplier"}`,
+        method: "POST",
+        body: {
+          ...(isCustomer ? { customerId: id } : { supplierId: id }),
+          amount: Number(payForm.amount),
+          method: payForm.method,
+          reference: payForm.reference || undefined,
+          notes: payForm.notes || undefined,
+        },
       });
-      toast.success("Payment recorded");
+      toast.success(result.queued ? "Payment queued — will sync" : "Payment recorded");
       setPayOpen(false);
       refetch();
     } catch (err) {

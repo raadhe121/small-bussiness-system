@@ -6,7 +6,7 @@ import useFetch from "../hooks/useFetch";
 import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
-import Spinner from "../components/Spinner";
+import { TableSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
@@ -32,7 +32,7 @@ export default function Purchases() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <Spinner className="block mx-auto my-14" />
+          <TableSkeleton />
         ) : data.items.length === 0 ? (
           <EmptyState icon={ArrowDownToLine} title="No purchases yet" action={canCreate && <Link to="/purchases/new" className="btn-primary"><Plus className="w-4 h-4" /> New Purchase</Link>} />
         ) : (

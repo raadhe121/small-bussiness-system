@@ -26,11 +26,14 @@ import {
   ChevronDown,
   Shield,
   ShieldCheck,
+  ScanLine,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import api, { errMsg } from "../services/api";
 import { ROLE_LABELS, fmtDateTime } from "../utils/format";
 import { hasPermission } from "../utils/permissions";
+import InstallPrompt from "../components/InstallPrompt";
+import OfflineBar from "../components/OfflineBar";
 
 const NAV_GROUPS = [
   { to: "/dashboard", label: "Home", icon: LayoutDashboard, permission: "dashboard:view" },
@@ -56,6 +59,7 @@ const NAV_GROUPS = [
     icon: ShoppingCart,
     items: [
       { to: "/sales", label: "Sales", desc: "Invoices you've issued", icon: ShoppingCart, permission: "sales:view" },
+      { to: "/pos", label: "POS Billing", desc: "Scan, charge & print receipts", icon: ScanLine, permission: "sales:create" },
       { to: "/purchases", label: "Purchases", desc: "Bills from your suppliers", icon: ArrowDownToLine, permission: "purchases:view" },
       { to: "/payments", label: "Payments", desc: "Money in & money out", icon: Wallet, permission: "payments:view" },
       { to: "/expenses", label: "Expenses", desc: "Day-to-day spending", icon: ReceiptIndianRupee, permission: "expenses:view" },
@@ -416,6 +420,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <OfflineBar />
       {/* Top navigation */}
       <header className="sticky top-0 z-30 bg-white/55 backdrop-blur-2xl border-b border-white/50 shadow-[0_4px_24px_rgba(31,38,135,0.06)]">
         {/* Row 1 */}
@@ -440,8 +445,13 @@ export default function Layout() {
           {canSearch && <GlobalSearch />}
 
           {canCreateSale && (
-            <Link to="/sales/new" className="btn-primary hidden md:inline-flex !py-2 shadow-sm">
+            <Link to="/sales/new" className="btn-secondary hidden lg:inline-flex !py-2">
               <Plus className="w-4 h-4" /> New Sale
+            </Link>
+          )}
+          {canCreateSale && (
+            <Link to="/pos" className="btn-primary hidden md:inline-flex !py-2 shadow-sm">
+              <ScanLine className="w-4 h-4" /> POS
             </Link>
           )}
 
@@ -562,6 +572,8 @@ export default function Layout() {
       <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
         BusinessHub — made for Indian small businesses
       </footer>
+
+      <InstallPrompt />
     </div>
   );
 }

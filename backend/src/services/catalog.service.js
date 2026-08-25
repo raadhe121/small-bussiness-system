@@ -96,6 +96,18 @@ async function getProduct(businessId, id) {
   return serializeProduct(p);
 }
 
+/** Fast exact lookup by scannable barcode — used by the POS camera scanner. */
+async function getProductByBarcode(businessId, code) {
+  const clean = String(code || "").trim();
+  if (!clean) throw new ApiError(400, "Barcode is required");
+  const p = await prisma.product.findFirst({
+    where: { businessId, barcode: clean, status: "ACTIVE" },
+    include: productInclude,
+  });
+  if (!p) throw new ApiError(404, `No product matches barcode "${clean}"`);
+  return serializeProduct(p);
+}
+
 /**
  * Creates a product. `openingStock` (if > 0) creates the product with stock
  * and records an initial STOCK_IN inventory transaction.
@@ -189,6 +201,7 @@ module.exports = {
   deleteCategory,
   listProducts,
   getProduct,
+  getProductByBarcode,
   createProduct,
   updateProduct,
   deleteProduct,

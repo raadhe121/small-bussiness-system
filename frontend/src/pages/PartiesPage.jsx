@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Users2, Plus, Pencil, Trash2, Phone } from "lucide-react";
 import api, { errMsg } from "../services/api";
+import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
@@ -9,7 +10,7 @@ import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import Spinner from "../components/Spinner";
+import { TableSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { inr } from "../utils/format";
 
@@ -53,9 +54,10 @@ export default function PartiesPage({ mode }) {
   const save = async (e) => {
     e.preventDefault();
     try {
-      if (editItem) await api.put(`${base}/${editItem.id}`, form);
-      else await api.post(base, form);
-      toast.success(`${label} ${editItem ? "updated" : "created"}`);
+      const result = editItem
+        ? await submitOrQueue({ label: `Update ${label}`, url: `${base}/${editItem.id}`, method: "PUT", body: form })
+        : await submitOrQueue({ label: `New ${label}`, url: base, method: "POST", body: form });
+      toast.success(result.queued ? `${label} change queued — will sync` : `${label} ${editItem ? "updated" : "created"}`);
       setShowForm(false);
       refetch();
     } catch (err) {
@@ -75,7 +77,7 @@ export default function PartiesPage({ mode }) {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <Spinner className="block mx-auto my-14" />
+          <TableSkeleton />
         ) : data.items.length === 0 ? (
           <EmptyState
             icon={Users2}
@@ -169,8 +171,8 @@ export default function PartiesPage({ mode }) {
         confirmLabel="Delete"
         onConfirm={async () => {
           try {
-            await api.delete(`${base}/${deleteTarget.id}`);
-            toast.success(`${label} deleted`);
+            const result = await submitOrQueue({ label: `Delete ${label}`, url: `${base}/${deleteTarget.id}`, method: "DELETE" });
+            toast.success(result.queued ? "Delete queued — will sync" : `${label} deleted`);
             refetch();
           } catch (err) {
             toast.error(errMsg(err));

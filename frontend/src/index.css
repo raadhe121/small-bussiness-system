@@ -74,3 +74,46 @@
     width: 100%;
   }
 }
+
+/* ---- Thermal receipt (80mm) ---- */
+.receipt-paper {
+  width: 80mm;
+  max-width: 80mm;
+  margin: 0 auto;
+  background: #fff;
+  color: #000;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  padding: 6px 8px 12px;
+}
+.rec-center { text-align: center; }
+.rec-bold { font-weight: 700; }
+.rec-lg { font-size: 14px; }
+.rec-xs { font-size: 11px; }
+.rec-mt { margin-top: 6px; }
+.rec-rule {
+  border-top: 1px dashed #000;
+  margin: 6px 0;
+}
+.rec-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rec-danger { color: #b91c1c; font-weight: 700; }
+.rec-colhead, .rec-line {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.rec-colhead { border-bottom: 1px dotted #999; padding-bottom: 2px; margin-bottom: 2px; font-weight: 700; }
+.rec-name { flex: 1 1 auto; word-break: break-word; }
+.rec-amt { flex: 0 0 auto; text-align: right; min-width: 64px; }
+
+@media print {
+  body { background: #fff !important; }
+  @page { size: 80mm auto; margin: 0; }
+  .no-print { display: none !important; }
+  .receipt-paper { box-shadow: none !important; }
+}

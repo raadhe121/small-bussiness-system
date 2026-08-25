@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Boxes, ArrowDownCircle, ArrowUpCircle, SlidersHorizontal } from "lucide-react";
 import api, { errMsg } from "../services/api";
+import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
 import Modal from "../components/Modal";
-import Spinner from "../components/Spinner";
+import { TableSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";
@@ -47,13 +48,18 @@ export default function Inventory() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post("/inventory/adjust", {
-        productId: adjustTarget.productId,
-        type: adjForm.type,
-        quantity: Number(adjForm.quantity),
-        note: adjForm.note || undefined,
+      const result = await submitOrQueue({
+        label: "Stock adjustment",
+        url: "/inventory/adjust",
+        method: "POST",
+        body: {
+          productId: adjustTarget.productId,
+          type: adjForm.type,
+          quantity: Number(adjForm.quantity),
+          note: adjForm.note || undefined,
+        },
       });
-      toast.success("Stock updated");
+      toast.success(result.queued ? "Adjustment queued — will sync" : "Stock updated");
       setAdjustTarget(null);
       refetch();
     } catch (err) {
@@ -98,7 +104,7 @@ export default function Inventory() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <Spinner className="block mx-auto my-14" />
+          <TableSkeleton />
         ) : data.items.length === 0 ? (
           <EmptyState icon={Boxes} title="No inventory records" subtitle="Stock appears here when you add products with opening stock, make purchases, or adjust stock." />
         ) : (

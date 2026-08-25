@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Tags, Plus, Pencil, Trash2 } from "lucide-react";
 import api, { errMsg } from "../services/api";
+import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import Spinner from "../components/Spinner";
+import { TableSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";
@@ -45,9 +46,10 @@ export default function Categories() {
   const save = async (e) => {
     e.preventDefault();
     try {
-      if (editItem) await api.put(`/categories/${editItem.id}`, { name, description });
-      else await api.post("/categories", { name, description });
-      toast.success(editItem ? "Category updated" : "Category created");
+      const result = editItem
+        ? await submitOrQueue({ label: "Update category", url: `/categories/${editItem.id}`, method: "PUT", body: { name, description } })
+        : await submitOrQueue({ label: "New category", url: "/categories", method: "POST", body: { name, description } });
+      toast.success(result.queued ? "Category change queued — will sync" : editItem ? "Category updated" : "Category created");
       setShowForm(false);
       refetch();
     } catch (err) {
@@ -67,7 +69,7 @@ export default function Categories() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <Spinner className="block mx-auto my-14" />
+          <TableSkeleton />
         ) : data.items.length === 0 ? (
           <EmptyState
             icon={Tags}
@@ -137,8 +139,8 @@ export default function Categories() {
         confirmLabel="Delete"
         onConfirm={async () => {
           try {
-            await api.delete(`/categories/${deleteTarget.id}`);
-            toast.success("Category deleted");
+            const result = await submitOrQueue({ label: "Delete category", url: `/categories/${deleteTarget.id}`, method: "DELETE" });
+            toast.success(result.queued ? "Delete queued — will sync" : "Category deleted");
             refetch();
           } catch (err) {
             toast.error(errMsg(err));

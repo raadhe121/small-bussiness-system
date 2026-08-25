@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Pencil, Trash2, Eye, Store } from "lucide-react";
 import api, { errMsg } from "../../services/api";
+import { submitOrQueue } from "../../services/offlineQueue";
 import useFetch from "../../hooks/useFetch";
 import { useToast } from "../../context/ToastContext";
 import PageHeader from "../../components/PageHeader";
-import Spinner from "../../components/Spinner";
+import { TableSkeleton } from "../../components/Skeleton";
 import EmptyState from "../../components/EmptyState";
 import SearchInput from "../../components/SearchInput";
 import Pagination from "../../components/Pagination";
@@ -40,8 +41,8 @@ export default function PlatformBusinesses() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.put(`/platform/businesses/${editTarget.id}`, form);
-      toast.success("Business updated");
+      const result = await submitOrQueue({ label: "Update business", url: `/platform/businesses/${editTarget.id}`, method: "PUT", body: form });
+      toast.success(result.queued ? "Change queued — will sync" : "Business updated");
       setEditTarget(null);
       refetch();
     } catch (err) {
@@ -53,8 +54,8 @@ export default function PlatformBusinesses() {
 
   const toggleStatus = async (b) => {
     try {
-      await api.put(`/platform/businesses/${b.id}`, { isActive: !b.isActive });
-      toast.success(b.isActive ? "Business deactivated — users can no longer sign in" : "Business activated");
+      const result = await submitOrQueue({ label: "Toggle business", url: `/platform/businesses/${b.id}`, method: "PUT", body: { isActive: !b.isActive } });
+      toast.success(result.queued ? "Change queued — will sync" : b.isActive ? "Business deactivated — users can no longer sign in" : "Business activated");
       refetch();
     } catch (err) {
       toast.error(errMsg(err));
@@ -64,8 +65,8 @@ export default function PlatformBusinesses() {
   const doDelete = async () => {
     setSaving(true);
     try {
-      await api.delete(`/platform/businesses/${deleteTarget.id}`);
-      toast.success(`${deleteTarget.name} and all its data were deleted`);
+      const result = await submitOrQueue({ label: "Delete business", url: `/platform/businesses/${deleteTarget.id}`, method: "DELETE" });
+      toast.success(result.queued ? "Delete queued — will sync" : `${deleteTarget.name} and all its data were deleted`);
       setDeleteTarget(null);
       refetch();
     } catch (err) {
@@ -109,7 +110,7 @@ export default function PlatformBusinesses() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <Spinner className="block mx-auto my-14" />
+          <TableSkeleton />
         ) : !data?.items?.length ? (
           <EmptyState icon={Store} title="No businesses found" subtitle="Try a different search or filter." />
         ) : (

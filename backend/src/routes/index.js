@@ -18,6 +18,7 @@ const catC = require("../controllers/catalog.controller");
 const invC = require("../controllers/inventory.controller");
 const partyC = require("../controllers/party.controller");
 const salesC = require("../controllers/sales.controller");
+const posC = require("../controllers/pos.controller");
 const expC = require("../controllers/expense.controller");
 const analyticsC = require("../controllers/analytics.controller");
 const roleC = require("../controllers/role.controller");
@@ -117,6 +118,7 @@ module.exports = function apiRouter() {
 
   // ---- Products ----
   router.get("/products", authorize("products", "view"), validate({ query: catV.productQuerySchema }), catC.listProducts);
+  router.get("/products/barcode/:code", authorize("products", "view"), catC.getProductByBarcode);
   router.get("/products/:id", authorize("products", "view"), idParam, catC.getProduct);
   router.post("/products", authorize("products", "manage"), validate({ body: catV.productSchema }), catC.createProduct);
   router.put("/products/:id", authorize("products", "manage"), idParam, validate({ body: catV.productUpdateSchema }), catC.updateProduct);
@@ -156,6 +158,16 @@ module.exports = function apiRouter() {
   router.get("/sales", authorize("sales", "view"), saleQuery, salesC.listSales);
   router.get("/sales/:id", authorize("sales", "view"), idParam, salesC.getSale);
   router.post("/sales", authorize("sales", "create"), validate({ body: txnV.saleSchema }), salesC.createSale);
+  router.post("/sales/:id/return", authorize("sales", "create"), idParam, validate({ body: txnV.saleReturnSchema }), salesC.createSaleReturn);
+  router.get("/returns", authorize("sales", "view"), saleQuery, salesC.listReturns);
+
+  // ---- POS (hold / resume parked bills) ----
+  const pos = Router();
+  pos.post("/hold", authorize("sales", "create"), validate({ body: txnV.holdBillSchema }), posC.holdBill);
+  pos.get("/hold", authorize("sales", "create"), posC.listHeldBills);
+  pos.get("/hold/:id", authorize("sales", "create"), idParam, posC.getHeldBill);
+  pos.delete("/hold/:id", authorize("sales", "create"), idParam, posC.deleteHeldBill);
+  router.use("/pos", pos);
   router.get("/purchases", authorize("purchases", "view"), saleQuery, salesC.listPurchases);
   router.get("/purchases/:id", authorize("purchases", "view"), idParam, salesC.getPurchase);
   router.post("/purchases", authorize("purchases", "create"), validate({ body: txnV.purchaseSchema }), salesC.createPurchase);

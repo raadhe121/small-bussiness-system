@@ -1,4 +1,81 @@
-# BusinessHub — Production Deployment (Ubuntu VPS)
+# BusinessHub — Production Deployment
+
+Two deployment options:
+
+1. **Render** (easiest) — single Web Service; Express serves the API and the built frontend from one port. See [section A](#a-render-single-web-service).
+2. **Ubuntu VPS** — full control with Node.js, MySQL, PM2, Nginx and HTTPS. See [section B](#b-ubuntu-vps--nginx--pm2--https).
+
+---
+
+# A. Render (single Web Service)
+
+The repo is a monorepo (`frontend/` + `backend/`). In production the Express app serves `frontend/dist` when `NODE_ENV=production` (`backend/src/app.js`), so one Render Web Service hosts everything.
+
+## 1. Prerequisites
+
+- Repo pushed to GitHub/GitLab.
+- A **PostgreSQL** database — Render offers a free Postgres instance (note: free-tier databases expire after 30 days). Free external options: Neon, Supabase, Aiven. Create the database and note the connection string (append `?sslmode=require` if the provider requires TLS).
+
+## 2. Service settings
+
+| Setting | Value |
+| --- | --- |
+| Type | Web Service |
+| Region | any (closest to your DB) |
+| Instance | Free (0.1 CPU / 512 MB) is fine to start |
+| Branch | `main` |
+| Root Directory | *(leave empty)* |
+| Build Command | see below |
+| Pre-Deploy Command | `npm --prefix backend run db:deploy` |
+| Start Command | `npm run start` |
+| Health Check Path | `/api/health` |
+| Auto-Deploy | On Commit |
+
+**Build Command** (installs all three package.json files, generates the Prisma client, builds the frontend):
+
+```bash
+npm install && npm --prefix backend install && npm --prefix frontend install && npm --prefix backend run db:generate && npm run build
+```
+
+> The root `package.json` only contains dev tooling — a plain `npm install; npm run build` will fail because `backend/` and `frontend/` dependencies are never installed.
+
+## 3. Environment variables
+
+Set under **Environment → Environment Variables**:
+
+| Key | Value | Notes |
+| --- | --- | --- |
+| `NODE_ENV` | `production` | **Required** — without it `frontend/dist` is not served |
+| `DATABASE_URL` | `postgresql://user:pass@host:5432/dbname` | PostgreSQL; append `?sslmode=require` if the provider requires TLS |
+| `JWT_SECRET` | long random string (≥16 chars) | e.g. output of `openssl rand -hex 32` |
+| `FRONTEND_URL` | `https://<your-service>.onrender.com` | CORS allow-list |
+| `PORT` | *(leave unset)* | Render injects it automatically |
+
+## 4. First deploy & data
+
+1. Click **Create Resource** / trigger a deploy. The Pre-Deploy step applies `prisma/migrations` before every start.
+2. Verify: open `https://<your-service>.onrender.com/api/health` — should return JSON with `"success": true`.
+3. Create initial data:
+   - Register through the UI at `/register`, or
+   - Seed demo data from your machine by pointing at the same database:
+     ```bash
+     cd backend
+     DATABASE_URL="postgresql://...render-db..." npm run db:seed
+     ```
+     The seed creates the platform admin (`admin@businesshub.in` / `Admin@1234`) plus demo businesses.
+
+## 5. Free-plan notes
+
+- The service **spins down after ~15 minutes idle**; the first request afterwards takes 30–60 s (cold start). Ping `/api/health` on a schedule (e.g. cron-job.org or UptimeRobot) to keep it warm if needed.
+- 512 MB RAM is enough for this stack; watch logs under the **Logs** tab.
+
+## 6. Updating
+
+Just push to `main` — Auto-Deploy rebuilds, runs migrations (Pre-Deploy), restarts. Manual redeploy: **Manual Deploy → Deploy latest commit**.
+
+---
+
+# B. Ubuntu VPS + Nginx + PM2 + HTTPS
 
 Guide for deploying BusinessHub to a fresh Ubuntu 22.04/24.04 VPS with Node.js, MySQL, PM2, Nginx and HTTPS.
 
@@ -22,19 +99,20 @@ sudo apt install -y nodejs
 node -v
 ```
 
-## 3. Install & harden MySQL 8
+## 3. Install & harden PostgreSQL
 
 ```bash
-sudo apt install -y mysql-server
-sudo mysql_secure_installation
-sudo mysql
+sudo apt install -y postgresql postgresql-contrib
+sudo -u postgres psql
 ```
 
 ```sql
-CREATE DATABASE businesshub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'businesshub'@'localhost' IDENTIFIED BY 'STRONG_PASSWORD_HERE';
-GRANT ALL PRIVILEGES ON businesshub.* TO 'businesshub'@'localhost';
-FLUSH PRIVILEGES;
+CREATE DATABASE businesshub;
+CREATE USER businesshub WITH ENCRYPTED PASSWORD 'STRONG_PASSWORD_HERE';
+GRANT ALL PRIVILEGES ON DATABASE businesshub TO businesshub;
+\c businesshub
+GRANT ALL ON SCHEMA public TO businesshub;
+\q
 ```
 
 ## 4. Get the code & configure
@@ -49,7 +127,7 @@ npm run install-all
 **backend/.env**
 
 ```ini
-DATABASE_URL="mysql://businesshub:STRONG_PASSWORD_HERE@localhost:3306/businesshub"
+DATABASE_URL="postgresql://businesshub:STRONG_PASSWORD_HERE@localhost:5432/businesshub"
 PORT=5000
 NODE_ENV=production
 JWT_SECRET="<openssl rand -hex 32 output>"
@@ -185,14 +263,14 @@ sudo crontab -e
 ```
 
 ```
-0 2 * * * mysqldump -u businesshub -p'STRONG_PASSWORD' --single-transaction businesshub | gzip > /var/backups/businesshub/bh_$(date +\%F).sql.gz
+0 2 * * * pg_dump -U businesshub businesshub | gzip > /var/backups/businesshub/bh_$(date +\%F).sql.gz
 0 3 * * * find /var/backups/businesshub -name '*.sql.gz' -mtime +7 -delete
 ```
 
 Restore:
 
 ```bash
-gunzip < bh_2026-01-01.sql.gz | mysql -u businesshub -p businesshub
+gunzip < bh_2026-01-01.sql.gz | psql -U businesshub -d businesshub
 ```
 
 Optionally sync `/var/backups/businesshub` to object storage.
@@ -202,4 +280,4 @@ Optionally sync `/var/backups/businesshub` to object storage.
 - App health: `https://your-domain.com/api/health`
 - PM2: `pm2 status`, `pm2 logs businesshub-api`
 - Nginx: `sudo tail -f /var/log/nginx/error.log`
-- Disk/DB watch: `df -h`, `mysqladmin -u businesshub -p status`
+- Disk/DB watch: `df -h`, `pg_isready`, `psql -U businesshub -c 'SELECT 1'`

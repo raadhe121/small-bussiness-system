@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Shield, Plus, Pencil, Trash2, Lock, Users2 } from "lucide-react";
 import api, { errMsg } from "../services/api";
+import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import Spinner from "../components/Spinner";
+import { CardGridSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { useToast } from "../context/ToastContext";
 import { ALL_PERMISSIONS } from "../utils/permissions";
@@ -77,13 +78,10 @@ export default function Roles() {
     }
     setSaving(true);
     try {
-      if (editRole) {
-        await api.put(`/roles/${editRole.id}`, form);
-        toast.success("Role updated — changes apply immediately");
-      } else {
-        await api.post("/roles", form);
-        toast.success("Role created — assign it from the Team page");
-      }
+      const result = editRole
+        ? await submitOrQueue({ label: "Update role", url: `/roles/${editRole.id}`, method: "PUT", body: form })
+        : await submitOrQueue({ label: "New role", url: "/roles", method: "POST", body: form });
+      toast.success(result.queued ? "Role change queued — will sync" : editRole ? "Role updated — changes apply immediately" : "Role created — assign it from the Team page");
       setShowForm(false);
       refetch();
     } catch (err) {
@@ -95,8 +93,8 @@ export default function Roles() {
 
   const doDelete = async () => {
     try {
-      await api.delete(`/roles/${deleteTarget.id}`);
-      toast.success("Role deleted");
+      const result = await submitOrQueue({ label: "Delete role", url: `/roles/${deleteTarget.id}`, method: "DELETE" });
+      toast.success(result.queued ? "Delete queued — will sync" : "Role deleted");
       setDeleteTarget(null);
       refetch();
     } catch (err) {
@@ -114,7 +112,7 @@ export default function Roles() {
       />
 
       {loading ? (
-        <Spinner className="block mx-auto my-14 w-8 h-8" />
+        <CardGridSkeleton count={4} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Built-in roles */}

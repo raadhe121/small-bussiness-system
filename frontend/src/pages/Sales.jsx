@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ShoppingCart, Plus, Eye } from "lucide-react";
+import { ShoppingCart, Plus, Eye, RotateCcw } from "lucide-react";
 import api from "../services/api";
 import useFetch from "../hooks/useFetch";
 import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
-import Spinner from "../components/Spinner";
+import { TableSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate, titleCase } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
@@ -35,7 +35,7 @@ export default function Sales() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <Spinner className="block mx-auto my-14" />
+          <TableSkeleton rows={8} cols={7} />
         ) : data.items.length === 0 ? (
           <EmptyState icon={ShoppingCart} title="No sales yet" subtitle="Create your first sale." action={canCreate && <Link to="/sales/new" className="btn-primary"><Plus className="w-4 h-4" /> New Sale</Link>} />
         ) : (
@@ -63,9 +63,16 @@ export default function Sales() {
                       <td className="td text-right font-semibold">{inr(s.grandTotal)}</td>
                       <td className={`td text-right font-medium ${s.dueAmount > 0 ? "text-red-500" : "text-slate-400"}`}>{inr(s.dueAmount)}</td>
                       <td className="td">
-                        <Link to={`/invoices/${s.id}`} className="p-1.5 rounded-lg hover:bg-brand-50 text-brand-600 flex w-fit ml-auto" title="View invoice">
-                          <Eye className="w-4 h-4" />
-                        </Link>
+                        <div className="flex items-center gap-1 justify-end">
+                          {canCreate && (
+                            <Link to={`/sales/${s.id}/return`} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500" title="Return / refund">
+                              <RotateCcw className="w-4 h-4" />
+                            </Link>
+                          )}
+                          <Link to={`/invoices/${s.id}`} className="p-1.5 rounded-lg hover:bg-brand-50 text-brand-600" title="View invoice">
+                            <Eye className="w-4 h-4" />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}

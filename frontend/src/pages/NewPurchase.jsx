@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Trash2, Plus, PackagePlus } from "lucide-react";
 import api, { errMsg } from "../services/api";
+import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
@@ -62,7 +63,7 @@ export default function NewPurchase() {
 
     setSaving(true);
     try {
-      const res = await api.post("/purchases", {
+      const payload = {
         supplierId: supplierId || null,
         billNo: billNo || undefined,
         items: valid.map((l) => ({
@@ -77,9 +78,15 @@ export default function NewPurchase() {
         paidAmount,
         notes: notes || undefined,
         purchaseDate: new Date(`${purchaseDate}T12:00:00Z`).toISOString(),
-      });
-      toast.success("Purchase recorded — stock updated");
-      navigate("/purchases");
+      };
+      const result = await submitOrQueue({ label: "New purchase", url: "/purchases", method: "POST", body: payload });
+      if (result.queued) {
+        toast.success("You're offline — purchase queued and will sync automatically");
+        navigate("/purchases");
+      } else {
+        toast.success("Purchase recorded — stock updated");
+        navigate("/purchases");
+      }
     } catch (err) {
       toast.error(errMsg(err));
     } finally {

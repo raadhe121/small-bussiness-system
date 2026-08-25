@@ -17,5 +17,8 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "@zxing/browser": "^0.1.5"
   }
 }

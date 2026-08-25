@@ -5,7 +5,7 @@ import api from "../services/api";
 import useFetch from "../hooks/useFetch";
 import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
-import Spinner from "../components/Spinner";
+import { TableSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate } from "../utils/format";
 
@@ -39,7 +39,7 @@ export default function Invoices() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <Spinner className="block mx-auto my-14" />
+          <TableSkeleton />
         ) : data.items.length === 0 ? (
           <EmptyState icon={FileText} title="No invoices found" />
         ) : (

@@ -26,6 +26,44 @@ const saleSchema = z
     }
   });
 
+const saleReturnSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        saleItemId: z.string().uuid(),
+        quantity: z.coerce.number().positive().max(99999999),
+      })
+    )
+    .min(1, "Add at least one item to return"),
+  method: paymentMethodEnum.default("CASH"),
+  reason: z.string().trim().max(300).optional().or(z.literal("")),
+  returnDate: z.string().datetime().optional(),
+});
+
+// Parked bills from the POS (hold / resume). The cart is carried as JSON.
+const holdBillSchema = z.object({
+  name: z.string().trim().max(120).optional().or(z.literal("")),
+  customerId: z.string().uuid().nullable().optional(),
+  customerName: z.string().trim().max(160).optional().or(z.literal("")),
+  paymentMethod: paymentMethodEnum.default("CASH"),
+  discount: z.coerce.number().min(0).max(9999999999).default(0),
+  notes: z.string().trim().max(500).optional().or(z.literal("")),
+  total: z.coerce.number().min(0).default(0),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        name: z.string().min(1),
+        unit: z.string().max(20).optional().or(z.literal("")),
+        quantity: z.coerce.number().positive(),
+        rate: z.coerce.number().min(0),
+        discount: z.coerce.number().min(0).default(0),
+        taxRate: z.coerce.number().min(0).max(28).default(0),
+      })
+    )
+    .min(1, "A held bill must contain at least one item"),
+});
+
 const purchaseSchema = z.object({
   supplierId: z.string().uuid().nullable().optional(),
   billNo: z.string().trim().max(40).optional().or(z.literal("")),
@@ -85,6 +123,8 @@ const expenseUpdateSchema = expenseSchema.partial();
 
 module.exports = {
   saleSchema,
+  saleReturnSchema,
+  holdBillSchema,
   purchaseSchema,
   stockAdjustSchema,
   transferSchema,

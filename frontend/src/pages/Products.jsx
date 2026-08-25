@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Package, Plus, Pencil, Trash2 } from "lucide-react";
 import api, { errMsg } from "../services/api";
+import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
@@ -9,7 +10,7 @@ import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import Spinner from "../components/Spinner";
+import { TableSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { inr } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
@@ -67,11 +68,11 @@ export default function Products() {
       else payload.categoryId = payload.categoryId;
       if (payload.openingStock === "" && !editItem) delete payload.openingStock;
       if (editItem) {
-        await api.put(`/products/${editItem.id}`, payload);
-        toast.success("Product updated");
+        const result = await submitOrQueue({ label: "Update product", url: `/products/${editItem.id}`, method: "PUT", body: payload });
+        toast.success(result.queued ? "Product update queued — will sync" : "Product updated");
       } else {
-        await api.post("/products", payload);
-        toast.success("Product created");
+        const result = await submitOrQueue({ label: "New product", url: "/products", method: "POST", body: payload });
+        toast.success(result.queued ? "Product creation queued — will sync" : "Product created");
       }
       setShowForm(false);
       refetch();
@@ -84,8 +85,8 @@ export default function Products() {
 
   const doDelete = async () => {
     try {
-      await api.delete(`/products/${deleteTarget.id}`);
-      toast.success("Product deleted");
+      const result = await submitOrQueue({ label: "Delete product", url: `/products/${deleteTarget.id}`, method: "DELETE" });
+      toast.success(result.queued ? "Delete queued — will sync" : "Product deleted");
       setDeleteTarget(null);
       refetch();
     } catch (err) {
@@ -113,7 +114,7 @@ export default function Products() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <Spinner className="block mx-auto my-14" />
+          <TableSkeleton />
         ) : data.items.length === 0 ? (
           <EmptyState
             icon={Package}

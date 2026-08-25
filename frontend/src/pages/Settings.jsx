@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Building2, ShieldCheck, Save, LogOut } from "lucide-react";
 import api, { errMsg } from "../services/api";
+import { submitOrQueue } from "../services/offlineQueue";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
@@ -37,25 +38,30 @@ export default function Settings() {
     e.preventDefault();
     setSavingBiz(true);
     try {
-      await api.put("/business/settings", {
-        name: biz.name,
-        ownerName: biz.ownerName,
-        phone: biz.phone,
-        email: biz.email || "",
-        address: biz.address || "",
-        city: biz.city || "",
-        state: biz.state || "",
-        pincode: biz.pincode || "",
-        gstin: biz.gstin || "",
-        invoicePrefix: biz.invoicePrefix,
-        invoiceTerms: biz.invoiceTerms || "",
-        upiId: biz.upiId || "",
-        bankDetails: biz.bankDetails || "",
-        defaultGstRate: Number(biz.defaultGstRate),
-        lowStockAlertsEnabled: !!biz.lowStockAlertsEnabled,
-        paymentDueAlertsEnabled: !!biz.paymentDueAlertsEnabled,
+      const result = await submitOrQueue({
+        label: "Business settings",
+        url: "/business/settings",
+        method: "PUT",
+        body: {
+          name: biz.name,
+          ownerName: biz.ownerName,
+          phone: biz.phone,
+          email: biz.email || "",
+          address: biz.address || "",
+          city: biz.city || "",
+          state: biz.state || "",
+          pincode: biz.pincode || "",
+          gstin: biz.gstin || "",
+          invoicePrefix: biz.invoicePrefix,
+          invoiceTerms: biz.invoiceTerms || "",
+          upiId: biz.upiId || "",
+          bankDetails: biz.bankDetails || "",
+          defaultGstRate: Number(biz.defaultGstRate),
+          lowStockAlertsEnabled: !!biz.lowStockAlertsEnabled,
+          paymentDueAlertsEnabled: !!biz.paymentDueAlertsEnabled,
+        },
       });
-      toast.success("Settings saved");
+      toast.success(result.queued ? "Settings change queued — will sync" : "Settings saved");
       setBizForm(null);
       reloadBiz();
       refresh();
@@ -69,8 +75,8 @@ export default function Settings() {
   const saveProfile = async (e) => {
     e.preventDefault();
     try {
-      await api.put("/auth/profile", profile);
-      toast.success("Profile updated");
+      const result = await submitOrQueue({ label: "Profile", url: "/auth/profile", method: "PUT", body: profile });
+      toast.success(result.queued ? "Profile change queued — will sync" : "Profile updated");
       refresh();
     } catch (err) {
       toast.error(errMsg(err));

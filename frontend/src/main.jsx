@@ -4,7 +4,14 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
+import { registerServiceWorker } from "./services/swRegister";
+import { initOfflineSync } from "./services/offlineQueue";
 import "./index.css";
+
+registerServiceWorker();
+initOfflineSync((synced, remaining) =>
+  window.dispatchEvent(new CustomEvent("bh-offline-synced", { detail: { synced, remaining } }))
+);
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

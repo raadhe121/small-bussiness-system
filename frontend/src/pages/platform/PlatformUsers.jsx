@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Trash2, Users2 } from "lucide-react";
 import api, { errMsg } from "../../services/api";
+import { submitOrQueue } from "../../services/offlineQueue";
 import useFetch from "../../hooks/useFetch";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import PageHeader from "../../components/PageHeader";
-import Spinner from "../../components/Spinner";
+import { TableSkeleton } from "../../components/Skeleton";
 import EmptyState from "../../components/EmptyState";
 import SearchInput from "../../components/SearchInput";
 import Pagination from "../../components/Pagination";
@@ -37,8 +38,8 @@ export default function PlatformUsers() {
 
   const changeRole = async (u, newRole) => {
     try {
-      await api.put(`/platform/users/${u.id}`, { role: newRole });
-      toast.success(`${u.name} is now ${ROLE_LABELS[newRole] || newRole}`);
+      const result = await submitOrQueue({ label: "Change user role", url: `/platform/users/${u.id}`, method: "PUT", body: { role: newRole } });
+      toast.success(result.queued ? "Change queued — will sync" : `${u.name} is now ${ROLE_LABELS[newRole] || newRole}`);
       refetch();
     } catch (err) {
       toast.error(errMsg(err));
@@ -47,8 +48,8 @@ export default function PlatformUsers() {
 
   const toggleActive = async (u) => {
     try {
-      await api.put(`/platform/users/${u.id}`, { isActive: !u.isActive });
-      toast.success(u.isActive ? `${u.name} disabled` : `${u.name} re-enabled`);
+      const result = await submitOrQueue({ label: "Toggle user", url: `/platform/users/${u.id}`, method: "PUT", body: { isActive: !u.isActive } });
+      toast.success(result.queued ? "Change queued — will sync" : u.isActive ? `${u.name} disabled` : `${u.name} re-enabled`);
       refetch();
     } catch (err) {
       toast.error(errMsg(err));
@@ -58,8 +59,8 @@ export default function PlatformUsers() {
   const doDelete = async () => {
     setSaving(true);
     try {
-      await api.delete(`/platform/users/${deleteTarget.id}`);
-      toast.success(`${deleteTarget.name} deleted`);
+      const result = await submitOrQueue({ label: "Delete user", url: `/platform/users/${deleteTarget.id}`, method: "DELETE" });
+      toast.success(result.queued ? "Delete queued — will sync" : `${deleteTarget.name} deleted`);
       setDeleteTarget(null);
       refetch();
     } catch (err) {
@@ -96,7 +97,7 @@ export default function PlatformUsers() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <Spinner className="block mx-auto my-14" />
+          <TableSkeleton />
         ) : !data?.items?.length ? (
           <EmptyState icon={Users2} title="No users found" subtitle="Try a different search or filter." />
         ) : (

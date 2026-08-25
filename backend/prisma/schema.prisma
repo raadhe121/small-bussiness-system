@@ -106,12 +106,14 @@ model Business {
   customers           Customer[]
   suppliers           Supplier[]
   sales               Sale[]
+  saleReturns         SaleReturn[]
   purchases           Purchase[]
   payments            Payment[]
   expenses            Expense[]
   expenseCategories   ExpenseCategory[]
   inventoryTxns       InventoryTransaction[]
   notifications       Notification[]
+  heldBills           HeldBill[]
   customerTxns        CustomerTransaction[]
   supplierTxns        SupplierTransaction[]
 
@@ -201,6 +203,7 @@ model Product {
   category     Category?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   inventory    Inventory?
   saleItems    SaleItem[]
+  saleReturnItems SaleReturnItem[]
   purchaseItems PurchaseItem[]
   inventoryTxns InventoryTransaction[]
 
@@ -264,6 +267,7 @@ model Customer {
 
   business    Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   sales       Sale[]
+  saleReturns SaleReturn[]
   transactions CustomerTransaction[]
   payments    Payment[]
 
@@ -361,10 +365,86 @@ model Sale {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items    SaleItem[]
+  returns  SaleReturn[]
 
   @@unique([businessId, invoiceNo])
   @@index([businessId, saleDate])
   @@index([businessId, customerId])
+}
+
+// Sales return / refund — always tied to an original sale.
+// Stock is restored and the refund is settled first against the sale's
+// outstanding due, with any remainder refunded via CASH/UPI/CARD.
+model SaleReturn {
+  id           String        @id @default(uuid()) @db.Char(36)
+  businessId   String        @db.Char(36)
+  returnNo     String        @db.VarChar(40)
+  saleId       String        @db.Char(36)
+  customerId   String?       @db.Char(36)
+  subtotal     Decimal       @db.Decimal(14, 2)
+  totalTax     Decimal       @default(0) @db.Decimal(14, 2)
+  refundTotal  Decimal       @db.Decimal(14, 2)
+  dueAdjusted  Decimal       @default(0) @db.Decimal(14, 2)
+  cashRefunded Decimal       @default(0) @db.Decimal(14, 2)
+  method       PaymentMethod @default(CASH)
+  reason       String?       @db.VarChar(300)
+  returnDate   DateTime
+  createdById  String?       @db.Char(36)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  business Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sale     Sale       @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  customer Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items    SaleReturnItem[]
+
+  @@unique([businessId, returnNo])
+  @@index([businessId, returnDate])
+  @@index([businessId, saleId])
+}
+
+model SaleReturnItem {
+  id          String  @id @default(uuid()) @db.Char(36)
+  returnId    String  @db.Char(36)
+  saleItemId  String? @db.Char(36)
+  productId   String  @db.Char(36)
+  productName String  @db.VarChar(200)
+  quantity    Decimal @db.Decimal(14, 3)
+  rate        Decimal @db.Decimal(14, 2)
+  taxRate     Decimal @default(0) @db.Decimal(5, 2)
+  taxAmount   Decimal @default(0) @db.Decimal(14, 2)
+  refundAmount Decimal @db.Decimal(14, 2)
+
+  return   SaleReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  product  Product    @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([returnId])
+  @@index([productId])
+}
+
+// ---------- POS: Held (parked) bills ----------
+// A parked bill is an in-progress sale the cashier set aside to resume later
+// (e.g. a customer stepped away, or a second lane opened). Items are stored as
+// JSON so the exact cart — with quantities, rates and manual discounts — can be
+// rebuilt on resume without re-locking inventory.
+model HeldBill {
+  id           String        @id @default(uuid()) @db.Char(36)
+  businessId   String        @db.Char(36)
+  name         String        @db.VarChar(120)
+  customerId   String?       @db.Char(36)
+  customerName String?       @db.VarChar(160)
+  items        Json
+  paymentMethod PaymentMethod @default(CASH)
+  discount     Decimal       @default(0) @db.Decimal(14, 2)
+  notes        String?       @db.VarChar(500)
+  total        Decimal       @default(0) @db.Decimal(14, 2)
+  createdById  String?       @db.Char(36)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
 }
 
 model SaleItem {

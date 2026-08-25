@@ -25,6 +25,7 @@ One deployment serves many businesses. Every business owns its own products, cus
 | **GST** | Rate-wise summary, output tax (CGST/SGST/IGST), input credit from purchases, net payable — informational only, **no GSTN filing integration** |
 | **Reports** | Sales, purchases, profit & loss, expenses, inventory valuation, customer/supplier outstanding, payments — with Today/Yesterday/Week/Month/custom ranges |
 | **Team & RBAC** | OWNER / ADMIN / MANAGER / EMPLOYEE / ACCOUNTANT with server-enforced permission matrix |
+| **Platform Admin Panel** | Cross-tenant back-office at `/platform`: platform-wide stats, manage every business (edit / activate / deactivate / delete), manage every user across all tenants (role change, disable, delete). Gated by the `isPlatformAdmin` flag on `User` |
 | **Notifications** | Low stock, customer credit-limit breach, supplier dues — generated on demand, read/unread |
 | **Search** | Global search across products, customers, suppliers, invoices |
 
@@ -34,7 +35,7 @@ One deployment serves many businesses. Every business owns its own products, cus
 - **Backend:** Node.js, Express, Zod validation, JWT, bcryptjs, Helmet, CORS, Morgan
 - **Database:** MySQL 8+ via Prisma ORM (Decimal money types, FK constraints, indexes)
 - **Tooling:** Nodemon, ESLint, Concurrently
-- **Production:** PM2, Nginx, HTTPS (see `docs/DEPLOYMENT.md`)
+- **Production:** Render single-service deploy or PM2 + Nginx on a VPS (see `docs/DEPLOYMENT.md`)
 
 ## Project structure
 
@@ -61,11 +62,12 @@ small-bussiness-portal/
 │       ├── components/          # UI building blocks
 │       ├── context/             # Auth, Toast providers
 │       ├── hooks/
-│       ├── layouts/             # Sidebar/topbar shell
-│       ├── pages/               # One file per route
+│       ├── layouts/             # Layout.jsx (app shell), PlatformLayout.jsx (admin shell)
+│       ├── pages/               # One file per route (platform/ = admin panel pages)
+│       ├── pages/platform/      # Platform admin: overview, businesses, all users
 │       ├── services/api.js      # Axios instance + interceptors
 │       └── utils/
-└── docs/DEPLOYMENT.md           # Ubuntu VPS + Nginx + PM2 + SSL guide
+└── docs/DEPLOYMENT.md           # Ubuntu VPS + Nginx + PM2 + SSL guide · Render guide
 ```
 
 ## Requirements
@@ -102,12 +104,27 @@ npm run dev
 
 | Role | Email | Password |
 | --- | --- | --- |
+| **Platform Admin** | `admin@businesshub.in` | `Admin@1234` |
 | Owner | `demo@businesshub.in` | `Demo@1234` |
 | Manager | `manager@businesshub.in` | `Demo@1234` |
 | Employee | `employee@businesshub.in` | `Demo@1234` |
 | Accountant | `accountant@businesshub.in` | `Demo@1234` |
 
-The seed creates "Sharma Kirana & General Store" with categories, products, customers, suppliers, 14 days of sales history, a purchase with due amount and expenses so every dashboard/report has real data.
+The seed creates "Sharma Kirana & General Store" with categories, products, customers, suppliers, 14 days of sales history, a purchase with due amount and expenses so every dashboard/report has real data. It also creates two additional businesses (Gupta Electronics, Lakshmi Textiles) with their own owners so the platform admin panel has cross-tenant data to manage.
+
+### Platform Admin Panel
+
+Sign in as the platform admin and you land on `/platform`, a separate back-office shell:
+
+- **Overview** — platform-wide stats: total/active/new businesses, users & owners, all-time revenue, sales today, products, customers
+- **Businesses** — search/filter every tenant; view full details (team, record counts, revenue, recent sales); edit name/owner/contact/GSTIN; activate/deactivate; permanently delete a business and all its data
+- **All Users** — every account across tenants; change roles inline, disable/enable, delete
+
+Access is enforced by the `isPlatformAdmin` flag on the `User` model (`requirePlatformAdmin` middleware server-side, `PlatformRoute` guard client-side). Platform admins can be created via seed or by setting the flag directly:
+
+```sql
+UPDATE User SET isPlatformAdmin = true WHERE email = 'you@example.com';
+```
 
 ## MySQL setup
 
@@ -171,9 +188,22 @@ Base URL `/api`. Consistent envelope:
 { "success": false, "message": "Validation failed", "errors": [{ "field": "...", "message": "..." }] }
 ```
 
-Route groups: `/auth`, `/business`, `/users`, `/categories`, `/products`, `/inventory`, `/customers`, `/suppliers`, `/sales`, `/purchases`, `/payments/customer`, `/payments/supplier`, `/expenses`, `/invoices/:saleId`, `/reports/*`, `/gst/summary`, `/notifications`, `/search`, `/health`.
+Route groups: `/auth`, `/business`, `/users`, `/categories`, `/products`, `/inventory`, `/customers`, `/suppliers`, `/sales`, `/purchases`, `/payments/customer`, `/payments/supplier`, `/expenses`, `/invoices/:saleId`, `/reports/*`, `/gst/summary`, `/notifications`, `/search`, `/platform/*` (platform admin only), `/health`.
 
 Authentication: `Authorization: Bearer <token>` header.
+
+Platform admin endpoints (require `isPlatformAdmin`):
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/platform/overview` | Platform-wide stats + newest businesses |
+| GET | `/platform/businesses` | List/search/filter all tenants (paginated) |
+| GET | `/platform/businesses/:id` | Tenant detail: team, counts, revenue, recent sales |
+| PUT | `/platform/businesses/:id` | Edit name/owner/phone/email/GSTIN or toggle active |
+| DELETE | `/platform/businesses/:id` | Permanently delete a business and all its data |
+| GET | `/platform/users` | All users across tenants (search/filter/paginate) |
+| PUT | `/platform/users/:id` | Change role (`{ role }`) or status (`{ isActive }`) |
+| DELETE | `/platform/users/:id` | Delete a user account |
 
 ### Email integration (forgot password)
 
@@ -185,7 +215,10 @@ No payment gateway is bundled. Payment *recording* is fully implemented; to coll
 
 ## Production build & deploy
 
-See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the full Ubuntu VPS guide: Node + MySQL install, PM2 process management, Nginx reverse proxy, domain DNS, Certbot SSL, migration strategy, backups and update procedure. In production Express serves the built frontend and the API from one port.
+Two guides are available in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**:
+
+1. **Render (recommended, easiest)** — single Web Service; Express serves the built frontend and API from one port. Includes Build/Pre-Deploy/Start commands and required env vars.
+2. **Ubuntu VPS** — full guide: Node + MySQL install, PM2 process management, Nginx reverse proxy, domain DNS, Certbot SSL, migration strategy, backups and update procedure.
 
 ## Database backup
 
@@ -215,5 +248,7 @@ Schedule with cron (daily example): `0 2 * * * mysqldump ... >/var/backups/bh_$(
 | `P1010 denied access … shadow db` | Dev-only: grant the DB user privileges on `*.*` (shadow DBs) |
 | `EADDRINUSE :5000` | Another process on port 5000 — change `PORT` |
 | Login loops back to /login | Backend unreachable — check `VITE_API_URL`/proxy and that API health responds |
+| Render: homepage works but API calls fail / blank page | `NODE_ENV` env var missing or not set to `production` on the service |
+| Render build fails at `npm run build` | Build Command must install backend + frontend deps first — see docs/DEPLOYMENT.md §A.2 |
 | Empty dashboard | No transactions yet for your tenant — make a sale/purchase |
 | Seed says "already seeded" | Demo user exists; drop the database to re-seed |

@@ -2,12 +2,13 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Wallet, Plus } from "lucide-react";
 import api, { errMsg } from "../services/api";
+import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Modal from "../components/Modal";
-import Spinner from "../components/Spinner";
+import { TableSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
@@ -42,14 +43,19 @@ export default function Payments() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post(`/payments/${tab}`, {
+      const payload = {
         ...(isCustomer ? { customerId: form.partyId } : { supplierId: form.partyId }),
         amount: Number(form.amount),
         method: form.method,
         reference: form.reference || undefined,
         notes: form.notes || undefined,
-      });
-      toast.success("Payment recorded");
+      };
+      const result = await submitOrQueue({ label: "Payment", url: `/payments/${tab}`, method: "POST", body: payload });
+      if (result.queued) {
+        toast.success("You're offline — payment queued and will sync automatically");
+      } else {
+        toast.success("Payment recorded");
+      }
       setPayOpen(false);
       refetch();
     } catch (err) {
@@ -86,7 +92,7 @@ export default function Payments() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <Spinner className="block mx-auto my-14" />
+          <TableSkeleton />
         ) : data.items.length === 0 ? (
           <EmptyState icon={Wallet} title="No payments yet" subtitle="Recorded payments appear here." />
         ) : (
