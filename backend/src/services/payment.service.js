@@ -2,6 +2,7 @@ const { Prisma } = require("@prisma/client");
 const prisma = require("../config/prisma");
 const { ApiError } = require("../utils/response");
 const { parsePagination, buildMeta } = require("../utils/pagination");
+const { resolveReadScope, resolveWriteBranch } = require("../utils/branchScope");
 
 /**
  * Payments service.
@@ -11,13 +12,19 @@ const { parsePagination, buildMeta } = require("../utils/pagination");
  */
 
 function serializePayment(p) {
-  return { ...p, amount: p.amount.toNumber() };
+  return {
+    ...p,
+    amount: p.amount.toNumber(),
+    branchId: p.branchId ?? null,
+    branchName: p.branch?.name ?? null,
+  };
 }
 
-async function listPayments(businessId, query) {
+async function listPayments(scope, query) {
   const { page, limit, skip, take } = parsePagination(query);
   const where = {
-    businessId,
+    businessId: scope.businessId,
+    ...(scope.branchId ? { branchId: scope.branchId } : {}),
     ...(query.partyType ? { partyType: query.partyType } : {}),
     ...(query.customerId ? { customerId: query.customerId } : {}),
     ...(query.supplierId ? { supplierId: query.supplierId } : {}),
@@ -32,6 +39,7 @@ async function listPayments(businessId, query) {
       include: {
         customer: { select: { id: true, name: true } },
         supplier: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
       },
     }),
     prisma.payment.count({ where }),
@@ -45,6 +53,7 @@ async function listPayments(businessId, query) {
 }
 
 async function createCustomerPayment(user, data) {
+  const scope = resolveWriteBranch(user, data);
   return prisma.$transaction(async (tx) => {
     const customer = await tx.customer.findFirst({
       where: { id: data.customerId, businessId: user.businessId },
@@ -64,6 +73,7 @@ async function createCustomerPayment(user, data) {
     const payment = await tx.payment.create({
       data: {
         businessId: user.businessId,
+        branchId: scope.branchId,
         direction: "RECEIVED",
         partyType: "CUSTOMER",
         customerId: customer.id,
@@ -92,6 +102,7 @@ async function createCustomerPayment(user, data) {
 }
 
 async function createSupplierPayment(user, data) {
+  const scope = resolveWriteBranch(user, data);
   return prisma.$transaction(async (tx) => {
     const supplier = await tx.supplier.findFirst({
       where: { id: data.supplierId, businessId: user.businessId },
@@ -110,6 +121,7 @@ async function createSupplierPayment(user, data) {
     const payment = await tx.payment.create({
       data: {
         businessId: user.businessId,
+        branchId: scope.branchId,
         direction: "PAID",
         partyType: "SUPPLIER",
         supplierId: supplier.id,

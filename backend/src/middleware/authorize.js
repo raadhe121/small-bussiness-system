@@ -28,7 +28,16 @@ function requireOwner(req, _res, next) {
   next();
 }
 
-/** Restricts a route to platform administrators (the BusinessHub back-office). */
+/** Restricts a route to users who can manage across branches (owner/admin/manager). */
+function requireManager(req, _res, next) {
+  if (!req.user) return next(new ApiError(401, "Authentication required"));
+  if (!["OWNER", "ADMIN", "MANAGER"].includes(req.user.role)) {
+    return next(new ApiError(403, "Only owners, admins or managers can manage branches"));
+  }
+  next();
+}
+
+/** Restricts a route to platform administrators (the DukaanSetu back-office). */
 function requirePlatformAdmin(req, _res, next) {
   if (!req.user) return next(new ApiError(401, "Authentication required"));
   if (!req.user.isPlatformAdmin) {
@@ -37,4 +46,4 @@ function requirePlatformAdmin(req, _res, next) {
   next();
 }
 
-module.exports = { authorize, requireOwner, requirePlatformAdmin };
+module.exports = { authorize, requireOwner, requireManager, requirePlatformAdmin };

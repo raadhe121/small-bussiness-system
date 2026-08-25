@@ -1,6 +1,6 @@
 const { Router } = require("express");
 const { authenticate, requireBusiness } = require("../middleware/authenticate");
-const { authorize, requireOwner, requirePlatformAdmin } = require("../middleware/authorize");
+const { authorize, requireOwner, requirePlatformAdmin, requireManager } = require("../middleware/authorize");
 const { validate } = require("../middleware/validate");
 const z = require("zod");
 
@@ -8,6 +8,7 @@ const z = require("zod");
 const authV = require("../validations/auth.schema");
 const bizV = require("../validations/business.schema");
 const catV = require("../validations/catalog.schema");
+const branchV = require("../validations/branch.schema");
 const txnV = require("../validations/transaction.schema");
 const dateV = require("../validations/dateRange.schema");
 
@@ -23,6 +24,7 @@ const expC = require("../controllers/expense.controller");
 const analyticsC = require("../controllers/analytics.controller");
 const roleC = require("../controllers/role.controller");
 const platformC = require("../controllers/platform.controller");
+const branchC = require("../controllers/branch.controller");
 
 // UUID param validator
 const idParam = validate({ params: z.object({ id: z.string().uuid() }) });
@@ -35,7 +37,7 @@ module.exports = function apiRouter() {
 
   // ---- Health ----
   router.get("/health", (_req, res) =>
-    res.json({ success: true, message: "BusinessHub API is healthy", data: { uptime: process.uptime(), timestamp: new Date().toISOString() } })
+    res.json({ success: true, message: "DukaanSetu API is healthy", data: { uptime: process.uptime(), timestamp: new Date().toISOString() } })
   );
 
   // ---- Auth (no business required yet) ----
@@ -109,6 +111,15 @@ module.exports = function apiRouter() {
   roles.put("/:id", requireOwner, idParam, validate({ body: roleBody.partial() }), roleC.updateRole);
   roles.delete("/:id", requireOwner, idParam, roleC.deleteRole);
   router.use("/roles", roles);
+
+  // ---- Branches (multi-location under one business) ----
+  const branches = Router();
+  branches.get("/", requireManager, branchC.listBranches);
+  branches.get("/:id", requireManager, idParam, branchC.getBranch);
+  branches.post("/", requireManager, validate({ body: branchV.branchSchema }), branchC.createBranch);
+  branches.put("/:id", requireManager, idParam, validate({ body: branchV.branchUpdateSchema }), branchC.updateBranch);
+  branches.delete("/:id", requireManager, idParam, branchC.deleteBranch);
+  router.use("/branches", branches);
 
   // ---- Categories ----
   router.get("/categories", authorize("categories", "view"), catC.listCategories);

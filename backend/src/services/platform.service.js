@@ -2,7 +2,7 @@ const prisma = require("../config/prisma");
 const { ApiError } = require("../utils/response");
 const { parsePagination, buildMeta } = require("../utils/pagination");
 
-/** Cross-tenant platform admin service — the BusinessHub back-office. */
+/** Cross-tenant platform admin service — the DukaanSetu back-office. */
 
 // ---- Overview ----
 

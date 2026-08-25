@@ -1,6 +1,7 @@
 const party = require("../services/party.service");
 const payment = require("../services/payment.service");
 const { ok, created } = require("../utils/response");
+const { resolveReadScope } = require("../utils/branchScope");
 
 // ---- Customers ----
 
@@ -69,7 +70,7 @@ async function getSupplierLedger(req, res, next) {
 // ---- Payments ----
 
 async function listPayments(req, res, next) {
-  try { ok(res, await payment.listPayments(req.user.businessId, req.query)); }
+  try { ok(res, await payment.listPayments(resolveReadScope(req.user, req.query), req.query)); }
   catch (err) { next(err); }
 }
 

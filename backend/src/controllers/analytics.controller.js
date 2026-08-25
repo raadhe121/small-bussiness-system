@@ -5,55 +5,56 @@ const salesService = require("../services/sales.service");
 const prisma = require("../config/prisma");
 const { ok } = require("../utils/response");
 const { getRange } = require("../validations/dateRange.schema");
+const { resolveReadScope } = require("../utils/branchScope");
 
 // ---- Dashboard ----
 
 async function dashboard(req, res, next) {
-  try { ok(res, await analytics.getDashboard(req.user.businessId)); }
+  try { ok(res, await analytics.getDashboard(resolveReadScope(req.user, req.query))); }
   catch (err) { next(err); }
 }
 
 // ---- Reports ----
 
 async function salesReport(req, res, next) {
-  try { ok(res, await analytics.salesReport(req.user.businessId, getRange(req.validatedQuery))); }
+  try { ok(res, await analytics.salesReport(resolveReadScope(req.user, req.query), getRange(req.validatedQuery))); }
   catch (err) { next(err); }
 }
 
 async function purchaseReport(req, res, next) {
-  try { ok(res, await analytics.purchaseReport(req.user.businessId, getRange(req.validatedQuery))); }
+  try { ok(res, await analytics.purchaseReport(resolveReadScope(req.user, req.query), getRange(req.validatedQuery))); }
   catch (err) { next(err); }
 }
 
 async function profitReport(req, res, next) {
-  try { ok(res, await analytics.profitReport(req.user.businessId, getRange(req.validatedQuery))); }
+  try { ok(res, await analytics.profitReport(resolveReadScope(req.user, req.query), getRange(req.validatedQuery))); }
   catch (err) { next(err); }
 }
 
 async function expenseReport(req, res, next) {
-  try { ok(res, await analytics.expenseReport(req.user.businessId, getRange(req.validatedQuery))); }
+  try { ok(res, await analytics.expenseReport(resolveReadScope(req.user, req.query), getRange(req.validatedQuery))); }
   catch (err) { next(err); }
 }
 
 async function inventoryReport(req, res, next) {
-  try { ok(res, await analytics.inventoryReport(req.user.businessId)); }
+  try { ok(res, await analytics.inventoryReport(resolveReadScope(req.user, req.query))); }
   catch (err) { next(err); }
 }
 
 async function outstandingReport(req, res, next) {
-  try { ok(res, await analytics.outstandingReport(req.user.businessId)); }
+  try { ok(res, await analytics.outstandingReport(resolveReadScope(req.user, req.query))); }
   catch (err) { next(err); }
 }
 
 async function paymentReport(req, res, next) {
-  try { ok(res, await analytics.paymentReport(req.user.businessId, getRange(req.validatedQuery))); }
+  try { ok(res, await analytics.paymentReport(resolveReadScope(req.user, req.query), getRange(req.validatedQuery))); }
   catch (err) { next(err); }
 }
 
 // ---- GST ----
 
 async function gstSummary(req, res, next) {
-  try { ok(res, await analytics.gstSummary(req.user.businessId, getRange(req.validatedQuery))); }
+  try { ok(res, await analytics.gstSummary(resolveReadScope(req.user, req.query), getRange(req.validatedQuery))); }
   catch (err) { next(err); }
 }
 

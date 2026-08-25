@@ -72,6 +72,7 @@ const customerPaymentSchema = z.object({
   reference: z.string().trim().max(120).optional().or(z.literal("")),
   notes: z.string().trim().max(500).optional().or(z.literal("")),
   paymentDate: z.string().datetime().optional(),
+  branchId: z.string().uuid().optional(),
 });
 
 const supplierPaymentSchema = customerPaymentSchema.omit({ customerId: true }).extend({

@@ -18,6 +18,7 @@ const publicUser = (u) => ({
   permissions: u.permissions || null,
   isActive: u.isActive,
   businessId: u.businessId,
+  branchId: u.branchId ?? null,
   business: u.business
     ? {
         id: u.business.id,

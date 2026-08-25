@@ -33,9 +33,14 @@ async function createBusiness(user, data) {
       },
     });
 
+    // Seed a default branch ("Main") so the multi-branch model has a root location.
+    const mainBranch = await tx.branch.create({
+      data: { businessId: biz.id, name: "Main", code: "MAIN", isDefault: true },
+    });
+
     await tx.user.update({
       where: { id: user.id },
-      data: { businessId: biz.id, role: "OWNER" },
+      data: { businessId: biz.id, role: "OWNER", branchId: mainBranch.id },
     });
 
     await tx.expenseCategory.createMany({
@@ -78,6 +83,8 @@ async function listUsers(businessId) {
       id: true, name: true, email: true, phone: true, role: true,
       customRoleId: true,
       customRole: { select: { id: true, name: true } },
+      branchId: true,
+      branch: { select: { id: true, name: true } },
       isActive: true, lastLoginAt: true, createdAt: true,
     },
   });
@@ -92,6 +99,14 @@ async function validateRole(businessId, roleId) {
   return role.id;
 }
 
+/** Validates a branchId belongs to this business; throws if not. */
+async function validateBranch(businessId, branchId) {
+  if (!branchId) return null;
+  const branch = await prisma.branch.findFirst({ where: { id: branchId, businessId } });
+  if (!branch) throw new ApiError(400, "Selected branch does not exist in your business");
+  return branch.id;
+}
+
 async function createUser(actor, data) {
   // Assigning roles (built-in or custom) is reserved for the OWNER.
   let role = data.role;
@@ -103,6 +118,7 @@ async function createUser(actor, data) {
     customRoleId = await validateRole(actor.businessId, data.roleId);
     role = undefined;
   }
+  const branchId = await validateBranch(actor.businessId, data.branchId || null);
   const exists = await prisma.user.findUnique({ where: { email: data.email } });
   if (exists) throw new ApiError(409, "A user with this email already exists");
   const user = await prisma.user.create({
@@ -113,6 +129,7 @@ async function createUser(actor, data) {
       passwordHash: await bcrypt.hash(data.password, 12),
       ...(role ? { role } : {}),
       ...(customRoleId ? { customRoleId } : {}),
+      ...(branchId ? { branchId } : {}),
       businessId: actor.businessId,
     },
   });
@@ -138,6 +155,14 @@ async function updateUser(actor, userId, data) {
   if (data.phone !== undefined) payload.phone = data.phone || null;
   if (data.isActive !== undefined) payload.isActive = data.isActive;
 
+  // Branch reassignment is owner-only.
+  if (data.branchId !== undefined) {
+    if (actor.role !== "OWNER") {
+      throw new ApiError(403, "Only the business owner can change a member's branch");
+    }
+    payload.branchId = await validateBranch(actor.businessId, data.branchId || null);
+  }
+
   // Role changes — built-in OR custom — are owner-only.
   if (data.roleId !== undefined || data.role !== undefined) {
     if (actor.role !== "OWNER") {
@@ -157,7 +182,7 @@ async function updateUser(actor, userId, data) {
   await prisma.user.update({ where: { id: target.id }, data: payload });
   return prisma.user.findUnique({
     where: { id: target.id },
-    select: { id: true, name: true, email: true, phone: true, role: true, customRoleId: true, customRole: { select: { id: true, name: true } }, isActive: true, lastLoginAt: true },
+    select: { id: true, name: true, email: true, phone: true, role: true, customRoleId: true, customRole: { select: { id: true, name: true } }, branchId: true, branch: { select: { id: true, name: true } }, isActive: true, lastLoginAt: true },
   });
 }
 

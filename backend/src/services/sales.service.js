@@ -3,7 +3,7 @@ const prisma = require("../config/prisma");
 const { ApiError } = require("../utils/response");
 const { parsePagination, buildMeta } = require("../utils/pagination");
 const { round2, add, sub, mul, D } = require("../utils/money");
-const { applyStockChange, checkLowStockAndNotify } = require("./inventory.service");
+const { applyStockChange, checkLowStockAndNotify, loadBranchStockMap } = require("./inventory.service");
 
 /**
  * Sales & Purchases — the financial core of the app.
@@ -101,12 +101,12 @@ async function validateProducts(businessId, items) {
 
 // ---------- SALES ----------
 
-async function createSale(user, data) {
+async function createSale(scope, user, data) {
   const business = await prisma.business.findUnique({
-    where: { id: user.businessId },
+    where: { id: scope.businessId },
     select: { invoicePrefix: true, state: true, currency: true },
   });
-  await validateProducts(user.businessId, data.items);
+  await validateProducts(scope.businessId, data.items);
 
   // Resolve inter-state from customer state when not explicitly provided.
   let isInterState = data.isInterState;
@@ -126,22 +126,23 @@ async function createSale(user, data) {
     // 1) Lock all product rows up-front (sorted to avoid deadlocks)
     const sortedIds = [...new Set(data.items.map((i) => i.productId))].sort();
     for (const pid of sortedIds) {
-      await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${pid} AND "businessId" = ${user.businessId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${pid} AND "businessId" = ${scope.businessId} FOR UPDATE`;
     }
     const products = await tx.product.findMany({
-      where: { id: { in: sortedIds }, businessId: user.businessId },
+      where: { id: { in: sortedIds }, businessId: scope.businessId },
       select: { id: true, name: true, currentStock: true, purchasePrice: true, unit: true },
     });
     const productMap = new Map(products.map((p) => [p.id, p]));
+    const branchStockMap = await loadBranchStockMap(tx, scope.branchId, sortedIds);
 
-    // 2) Validate stock and compute cost
+    // 2) Validate stock (per branch) and compute cost
     let costTotal = 0;
     for (const it of totals.computedItems) {
       const product = productMap.get(it.productId);
       if (!product) throw new ApiError(400, "Product not found in your business");
-      const available = product.currentStock.toNumber();
+      const available = branchStockMap.get(it.productId) || 0;
       if (available < it.quantity) {
-        throw new ApiError(400, `Insufficient stock for "${product.name}". Available: ${available} ${product.unit}, required: ${it.quantity}`);
+        throw new ApiError(400, `Insufficient stock for "${product.name}" at this branch. Available: ${available} ${product.unit}, required: ${it.quantity}`);
       }
       costTotal = add(costTotal, round2(mul(it.quantity, product.purchasePrice.toNumber())));
     }
@@ -169,6 +170,7 @@ async function createSale(user, data) {
         paymentMethod: data.paymentMethod,
         notes: data.notes || null,
         saleDate: data.saleDate ? new Date(data.saleDate) : new Date(),
+        branchId: scope.branchId,
         createdById: user.id,
       },
     });
@@ -188,19 +190,22 @@ async function createSale(user, data) {
           lineTotal: new Prisma.Decimal(String(it.lineTotal)),
         },
       });
-      const current = productMap.get(it.productId).currentStock.toNumber();
+      const current = branchStockMap.get(it.productId) || 0;
+      const newBal = round2(current - it.quantity);
+      branchStockMap.set(it.productId, newBal);
       await applyStockChange(tx, {
-        businessId: user.businessId,
+        businessId: scope.businessId,
+        branchId: scope.branchId,
         productId: it.productId,
         type: "SALE",
         quantity: it.quantity,
-        balanceAfter: round2(current - it.quantity),
+        branchBalanceAfter: newBal,
         referenceType: "SALE",
         referenceId: sale.id,
         note: `Sold on ${invoiceNo}`,
         userId: user.id,
       });
-      await checkLowStockAndNotify(tx, user.businessId, it.productId, round2(current - it.quantity));
+      await checkLowStockAndNotify(tx, scope.businessId, it.productId, newBal);
     }
 
     // 5) Payment record + customer outstanding
@@ -210,6 +215,7 @@ async function createSale(user, data) {
           businessId: user.businessId,
           direction: "RECEIVED",
           partyType: "SALE",
+          branchId: scope.branchId,
           customerId: data.customerId || null,
           saleId: sale.id,
           amount: new Prisma.Decimal(String(paidAmount)),
@@ -260,6 +266,7 @@ async function getSaleInTx(txOrPrisma, businessId, id) {
     where: { id, businessId },
     include: {
       customer: { select: { id: true, name: true, phone: true, email: true, address: true, city: true, state: true, pincode: true, gstin: true } },
+      branch: { select: { id: true, name: true } },
       items: true,
     },
   });
@@ -271,6 +278,8 @@ function serializeSale(sale) {
   const num = (v) => (v instanceof Prisma.Decimal ? v.toNumber() : Number(v));
   return {
     ...sale,
+    branchId: sale.branchId || null,
+    branchName: sale.branch?.name || null,
     subtotal: num(sale.subtotal),
     discount: num(sale.discount),
     cgst: num(sale.cgst),
@@ -285,10 +294,11 @@ function serializeSale(sale) {
   };
 }
 
-async function listSales(businessId, query) {
+async function listSales(scope, query) {
   const { page, limit, skip, take } = parsePagination(query);
   const where = {
-    businessId,
+    businessId: scope.businessId,
+    ...(scope.branchId ? { branchId: scope.branchId } : {}),
     ...(query.search ? { OR: [
       { invoiceNo: { contains: query.search } },
       ...(query.search.length >= 3 ? [{ customer: { name: { contains: query.search } } }] : []),
@@ -300,7 +310,7 @@ async function listSales(businessId, query) {
     prisma.sale.findMany({
       where, skip, take,
       orderBy: { saleDate: "desc" },
-      include: { customer: { select: { id: true, name: true } } },
+      include: { customer: { select: { id: true, name: true } }, branch: { select: { id: true, name: true } } },
     }),
     prisma.sale.count({ where }),
     prisma.sale.aggregate({ where, _sum: { grandTotal: true, paidAmount: true, dueAmount: true } }),
@@ -316,14 +326,14 @@ async function listSales(businessId, query) {
   };
 }
 
-async function getSale(businessId, id) {
-  return getSaleInTx(prisma, businessId, id);
+async function getSale(scope, id) {
+  return getSaleInTx(prisma, scope.businessId, id);
 }
 
 // ---------- PURCHASES ----------
 
-async function createPurchase(user, data) {
-  await validateProducts(user.businessId, data.items);
+async function createPurchase(scope, user, data) {
+  await validateProducts(scope.businessId, data.items);
   const totals = computeTotals({ items: data.items, billDiscount: data.discount, isInterState: false });
   const paidAmount = round2(Math.min(data.paidAmount, totals.grandTotal));
   const dueAmount = sub(totals.grandTotal, paidAmount);
@@ -331,13 +341,14 @@ async function createPurchase(user, data) {
   return prisma.$transaction(async (tx) => {
     const sortedIds = [...new Set(data.items.map((i) => i.productId))].sort();
     for (const pid of sortedIds) {
-      await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${pid} AND "businessId" = ${user.businessId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${pid} AND "businessId" = ${scope.businessId} FOR UPDATE`;
     }
     const products = await tx.product.findMany({
-      where: { id: { in: sortedIds }, businessId: user.businessId },
+      where: { id: { in: sortedIds }, businessId: scope.businessId },
       select: { id: true, name: true, currentStock: true },
     });
     const productMap = new Map(products.map((p) => [p.id, p]));
+    const branchStockMap = await loadBranchStockMap(tx, scope.branchId, sortedIds);
 
     const purchase = await tx.purchase.create({
       data: {
@@ -353,6 +364,7 @@ async function createPurchase(user, data) {
         paymentMethod: data.paymentMethod,
         notes: data.notes || null,
         purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : new Date(),
+        branchId: scope.branchId,
         createdById: user.id,
       },
     });
@@ -371,13 +383,16 @@ async function createPurchase(user, data) {
           lineTotal: new Prisma.Decimal(String(it.lineTotal)),
         },
       });
-      const current = productMap.get(it.productId).currentStock.toNumber();
+      const current = branchStockMap.get(it.productId) || 0;
+      const newBal = round2(current + it.quantity);
+      branchStockMap.set(it.productId, newBal);
       await applyStockChange(tx, {
-        businessId: user.businessId,
+        businessId: scope.businessId,
+        branchId: scope.branchId,
         productId: it.productId,
         type: "PURCHASE",
         quantity: it.quantity,
-        balanceAfter: round2(current + it.quantity),
+        branchBalanceAfter: newBal,
         referenceType: "PURCHASE",
         referenceId: purchase.id,
         note: data.billNo ? `Purchase ${data.billNo}` : "Purchase",
@@ -391,6 +406,7 @@ async function createPurchase(user, data) {
           businessId: user.businessId,
           direction: "PAID",
           partyType: "PURCHASE",
+          branchId: scope.branchId,
           supplierId: data.supplierId || null,
           purchaseId: purchase.id,
           amount: new Prisma.Decimal(String(paidAmount)),
@@ -431,10 +447,11 @@ function serializePurchase(purchase) {
   return s;
 }
 
-async function listPurchases(businessId, query) {
+async function listPurchases(scope, query) {
   const { page, limit, skip, take } = parsePagination(query);
   const where = {
-    businessId,
+    businessId: scope.businessId,
+    ...(scope.branchId ? { branchId: scope.branchId } : {}),
     ...(query.search ? { OR: [
       { billNo: { contains: query.search } },
       ...(query.search.length >= 3 ? [{ supplier: { name: { contains: query.search } } }] : []),
@@ -446,7 +463,7 @@ async function listPurchases(businessId, query) {
     prisma.purchase.findMany({
       where, skip, take,
       orderBy: { purchaseDate: "desc" },
-      include: { supplier: { select: { id: true, name: true } } },
+      include: { supplier: { select: { id: true, name: true } }, branch: { select: { id: true, name: true } } },
     }),
     prisma.purchase.count({ where }),
   ]);
@@ -458,6 +475,7 @@ async function getPurchaseInTx(txOrPrisma, businessId, id) {
     where: { id, businessId },
     include: {
       supplier: { select: { id: true, name: true, phone: true, email: true, address: true, gstin: true } },
+      branch: { select: { id: true, name: true } },
       items: true,
     },
   });
@@ -465,8 +483,8 @@ async function getPurchaseInTx(txOrPrisma, businessId, id) {
   return serializePurchase(purchase);
 }
 
-async function getPurchase(businessId, id) {
-  return getPurchaseInTx(prisma, businessId, id);
+async function getPurchase(scope, id) {
+  return getPurchaseInTx(prisma, scope.businessId, id);
 }
 
 // ---------- SALES RETURNS / REFUNDS ----------
@@ -511,9 +529,9 @@ async function generateReturnNo(tx, businessId) {
  * - Settles refund first against the sale's outstanding due (customer credit note)
  * - Refunds any remainder via CASH/UPI/CARD as a PAID payment record
  */
-async function createSaleReturn(user, saleId, data) {
+async function createSaleReturn(scope, user, saleId, data) {
   const sale = await prisma.sale.findFirst({
-    where: { id: saleId, businessId: user.businessId },
+    where: { id: saleId, businessId: scope.businessId },
     include: { items: true },
   });
   if (!sale) throw new ApiError(404, "Sale not found");
@@ -522,7 +540,7 @@ async function createSaleReturn(user, saleId, data) {
   // How much of each line has already been returned?
   const returnedRows = await prisma.saleReturnItem.groupBy({
     by: ["saleItemId"],
-    where: { saleItemId: { in: sale.items.map((i) => i.id) }, return: { businessId: user.businessId } },
+    where: { saleItemId: { in: sale.items.map((i) => i.id) }, return: { businessId: scope.businessId } },
     _sum: { quantity: true },
   });
   const returnedMap = new Map(returnedRows.map((r) => [r.saleItemId, r._sum.quantity.toNumber()]));
@@ -564,21 +582,23 @@ async function createSaleReturn(user, saleId, data) {
 
   return prisma.$transaction(async (tx) => {
     // Lock product rows before touching stock
+    const opBranchId = sale.branchId || (await tx.branch.findFirst({ where: { businessId: scope.businessId, isDefault: true } }))?.id || null;
     const sortedIds = [...new Set(lines.map((l) => l.productId))].sort();
     for (const pid of sortedIds) {
-      await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${pid} AND "businessId" = ${user.businessId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${pid} AND "businessId" = ${scope.businessId} FOR UPDATE`;
     }
     const products = await tx.product.findMany({
-      where: { id: { in: sortedIds }, businessId: user.businessId },
+      where: { id: { in: sortedIds }, businessId: scope.businessId },
       select: { id: true, currentStock: true },
     });
-    const stockMap = new Map(products.map((p) => [p.id, p.currentStock.toNumber()]));
+    const branchStockMap = opBranchId ? await loadBranchStockMap(tx, opBranchId, sortedIds) : new Map();
 
-    const returnNo = await generateReturnNo(tx, user.businessId);
+    const returnNo = await generateReturnNo(tx, scope.businessId);
     const header = await tx.saleReturn.create({
       data: {
-        businessId: user.businessId,
+        businessId: scope.businessId,
         returnNo,
+        branchId: opBranchId,
         saleId: sale.id,
         customerId: sale.customerId,
         subtotal: new Prisma.Decimal(String(round2(subtotal))),
@@ -605,13 +625,16 @@ async function createSaleReturn(user, saleId, data) {
           refundAmount: new Prisma.Decimal(String(l.refundAmount)),
         },
       });
-      const current = stockMap.get(l.productId) ?? 0;
+      const current = branchStockMap.get(l.productId) ?? 0;
+      const newBal = round2(current + l.quantity);
+      branchStockMap.set(l.productId, newBal);
       await applyStockChange(tx, {
-        businessId: user.businessId,
+        businessId: scope.businessId,
+        branchId: opBranchId,
         productId: l.productId,
         type: "STOCK_IN",
         quantity: l.quantity,
-        balanceAfter: round2(current + l.quantity),
+        branchBalanceAfter: newBal,
         referenceType: "SALE_RETURN",
         referenceId: header.id,
         note: `Returned on ${returnNo} (${sale.invoiceNo})`,
@@ -673,10 +696,11 @@ async function createSaleReturn(user, saleId, data) {
   });
 }
 
-async function listReturns(businessId, query) {
+async function listReturns(scope, query) {
   const { page, limit, skip, take } = parsePagination(query);
   const where = {
-    businessId,
+    businessId: scope.businessId,
+    ...(scope.branchId ? { branchId: scope.branchId } : {}),
     ...(query.search ? { OR: [
       { returnNo: { contains: query.search } },
       ...(query.search.length >= 3 ? [{ sale: { invoiceNo: { contains: query.search } } }] : []),

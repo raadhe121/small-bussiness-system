@@ -15,6 +15,7 @@ const saleSchema = z
     items: z.array(lineItem).min(1, "Add at least one item"),
     discount: z.coerce.number().min(0).max(9999999999).default(0), // extra bill-level discount
     isInterState: z.boolean().default(false),
+    branchId: z.string().uuid().optional(),
     paymentMethod: paymentMethodEnum.default("CASH"),
     paidAmount: z.coerce.number().min(0).default(0),
     notes: z.string().trim().max(500).optional().or(z.literal("")),
@@ -38,6 +39,7 @@ const saleReturnSchema = z.object({
   method: paymentMethodEnum.default("CASH"),
   reason: z.string().trim().max(300).optional().or(z.literal("")),
   returnDate: z.string().datetime().optional(),
+  branchId: z.string().uuid().optional(),
 });
 
 // Parked bills from the POS (hold / resume). The cart is carried as JSON.
@@ -49,6 +51,7 @@ const holdBillSchema = z.object({
   discount: z.coerce.number().min(0).max(9999999999).default(0),
   notes: z.string().trim().max(500).optional().or(z.literal("")),
   total: z.coerce.number().min(0).default(0),
+  branchId: z.string().uuid().optional(),
   items: z
     .array(
       z.object({
@@ -67,6 +70,7 @@ const holdBillSchema = z.object({
 const purchaseSchema = z.object({
   supplierId: z.string().uuid().nullable().optional(),
   billNo: z.string().trim().max(40).optional().or(z.literal("")),
+  branchId: z.string().uuid().optional(),
   items: z.array(lineItem).min(1, "Add at least one item"),
   discount: z.coerce.number().min(0).max(9999999999).default(0),
   paymentMethod: paymentMethodEnum.default("CASH"),
@@ -79,13 +83,15 @@ const purchaseSchema = z.object({
 const stockAdjustSchema = z.object({
   productId: z.string().uuid(),
   type: z.enum(["STOCK_IN", "STOCK_OUT", "ADJUSTMENT"]),
+  branchId: z.string().uuid().optional(),
   quantity: z.coerce.number().positive().max(99999999),
   note: z.string().trim().max(300).optional().or(z.literal("")),
 });
 
 const transferSchema = z.object({
   productId: z.string().uuid(),
-  toLocation: z.string().trim().min(1).max(120),
+  fromBranchId: z.string().uuid(),
+  toBranchId: z.string().uuid(),
   quantity: z.coerce.number().positive().max(99999999),
   note: z.string().trim().max(300).optional().or(z.literal("")),
 });
@@ -117,6 +123,7 @@ const expenseSchema = z.object({
   receiptUrl: z.string().trim().url().max(500).optional().or(z.literal("")),
   description: z.string().trim().max(500).optional().or(z.literal("")),
   expenseDate: z.string().datetime().optional(),
+  branchId: z.string().uuid().optional(),
 });
 
 const expenseUpdateSchema = expenseSchema.partial();

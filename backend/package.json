@@ -1,7 +1,7 @@
 {
   "name": "businesshub-backend",
   "version": "1.0.0",
-  "description": "BusinessHub - Multi-tenant SaaS for Indian small businesses (REST API)",
+  "description": "DukaanSetu - Multi-tenant SaaS for Indian small businesses (REST API)",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {

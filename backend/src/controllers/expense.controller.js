@@ -1,5 +1,6 @@
 const expenseService = require("../services/expense.service");
 const { ok, created } = require("../utils/response");
+const { resolveReadScope, resolveWriteBranch } = require("../utils/branchScope");
 
 async function listExpenseCategories(req, res, next) {
   try { ok(res, await expenseService.listExpenseCategories(req.user.businessId)); }
@@ -17,12 +18,12 @@ async function deleteExpenseCategory(req, res, next) {
 }
 
 async function listExpenses(req, res, next) {
-  try { ok(res, await expenseService.listExpenses(req.user.businessId, req.query)); }
+  try { ok(res, await expenseService.listExpenses(resolveReadScope(req.user, req.query), req.query)); }
   catch (err) { next(err); }
 }
 
 async function getExpense(req, res, next) {
-  try { ok(res, await expenseService.getExpense(req.user.businessId, req.params.id)); }
+  try { ok(res, await expenseService.getExpense(resolveReadScope(req.user, req.query), req.params.id)); }
   catch (err) { next(err); }
 }
 
@@ -32,12 +33,12 @@ async function createExpense(req, res, next) {
 }
 
 async function updateExpense(req, res, next) {
-  try { ok(res, await expenseService.updateExpense(req.user.businessId, req.params.id, req.body), "Expense updated"); }
+  try { ok(res, await expenseService.updateExpense(resolveWriteBranch(req.user, req.body), req.params.id, req.body), "Expense updated"); }
   catch (err) { next(err); }
 }
 
 async function deleteExpense(req, res, next) {
-  try { await expenseService.deleteExpense(req.user.businessId, req.params.id); ok(res, null, "Expense deleted"); }
+  try { await expenseService.deleteExpense(resolveReadScope(req.user, req.query), req.params.id); ok(res, null, "Expense deleted"); }
   catch (err) { next(err); }
 }
 

@@ -1,4 +1,4 @@
-# BusinessHub — Production Deployment
+# DukaanSetu — Production Deployment
 
 Two deployment options:
 
@@ -77,7 +77,7 @@ Just push to `main` — Auto-Deploy rebuilds, runs migrations (Pre-Deploy), rest
 
 # B. Ubuntu VPS + Nginx + PM2 + HTTPS
 
-Guide for deploying BusinessHub to a fresh Ubuntu 22.04/24.04 VPS with Node.js, MySQL, PM2, Nginx and HTTPS.
+Guide for deploying DukaanSetu to a fresh Ubuntu 22.04/24.04 VPS with Node.js, MySQL, PM2, Nginx and HTTPS.
 
 ---
 

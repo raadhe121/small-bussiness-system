@@ -4,14 +4,18 @@ const { add, round2, sub } = require("../utils/money");
 
 /**
  * Dashboard & reports. All figures come from real database aggregates —
- * no static or fake numbers.
+ * no static or fake numbers. Accepts a `scope` ({ businessId, branchId })
+ * so owners/managers can view consolidated (branchId null) or per-branch data.
  */
 
 const D = (v) => v?.toNumber() ?? 0;
 
 // ---------- Dashboard ----------
 
-async function getDashboard(businessId) {
+async function getDashboard(scope) {
+  const businessId = scope.businessId;
+  const bf = scope.branchId ? { branchId: scope.branchId } : {};
+  const branchSql = scope.branchId ? Prisma.sql` AND "branchId" = ${scope.branchId}` : Prisma.empty;
   const now = new Date();
   const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const tomorrowStart = new Date(todayStart.getTime() + 86400000);
@@ -32,17 +36,17 @@ async function getDashboard(businessId) {
     expenseChartRaw,
   ] = await Promise.all([
     prisma.sale.aggregate({
-      where: { businessId, saleDate: { gte: todayStart, lt: tomorrowStart } },
+      where: { businessId, ...bf, saleDate: { gte: todayStart, lt: tomorrowStart } },
       _sum: { grandTotal: true, dueAmount: true },
       _count: true,
     }),
     prisma.purchase.aggregate({
-      where: { businessId, purchaseDate: { gte: todayStart, lt: tomorrowStart } },
+      where: { businessId, ...bf, purchaseDate: { gte: todayStart, lt: tomorrowStart } },
       _sum: { grandTotal: true },
       _count: true,
     }),
     prisma.expense.aggregate({
-      where: { businessId, expenseDate: { gte: todayStart, lt: tomorrowStart } },
+      where: { businessId, ...bf, expenseDate: { gte: todayStart, lt: tomorrowStart } },
       _sum: { amount: true },
     }),
     prisma.customer.count({ where: { businessId } }),
@@ -57,7 +61,7 @@ async function getDashboard(businessId) {
     prisma.customer.aggregate({ where: { businessId }, _sum: { outstanding: true } }),
     prisma.supplier.aggregate({ where: { businessId }, _sum: { outstanding: true } }),
     prisma.sale.findMany({
-      where: { businessId },
+      where: { businessId, ...bf },
       orderBy: { saleDate: "desc" },
       take: 6,
       select: {
@@ -67,7 +71,7 @@ async function getDashboard(businessId) {
       },
     }),
     prisma.purchase.findMany({
-      where: { businessId },
+      where: { businessId, ...bf },
       orderBy: { purchaseDate: "desc" },
       take: 6,
       select: {
@@ -76,21 +80,20 @@ async function getDashboard(businessId) {
         supplier: { select: { name: true } },
       },
     }),
-    // last 14 days of daily sales + profit
     prisma.$queryRaw`
       SELECT DATE("saleDate") as day,
              SUM("grandTotal") as totalSales,
              SUM("profit") as totalProfit,
              COUNT(*) as orders
       FROM "Sale"
-      WHERE "businessId" = ${businessId} AND "saleDate" >= ${new Date(todayStart.getTime() - 13 * 86400000)}
+      WHERE "businessId" = ${businessId} ${branchSql} AND "saleDate" >= ${new Date(todayStart.getTime() - 13 * 86400000)}
       GROUP BY DATE("saleDate")
       ORDER BY day ASC
     `,
     prisma.$queryRaw`
       SELECT DATE("expenseDate") as day, SUM("amount") as total
       FROM "Expense"
-      WHERE "businessId" = ${businessId} AND "expenseDate" >= ${new Date(todayStart.getTime() - 13 * 86400000)}
+      WHERE "businessId" = ${businessId} ${branchSql} AND "expenseDate" >= ${new Date(todayStart.getTime() - 13 * 86400000)}
       GROUP BY DATE("expenseDate")
       ORDER BY day ASC
     `,
@@ -147,13 +150,16 @@ async function getDashboard(businessId) {
 
 // ---------- Reports ----------
 
-async function salesReport(businessId, range) {
-  const where = { businessId, saleDate: range };
+async function salesReport(scope, range) {
+  const businessId = scope.businessId;
+  const bf = scope.branchId ? { branchId: scope.branchId } : {};
+  const branchSql = scope.branchId ? Prisma.sql` AND "branchId" = ${scope.branchId}` : Prisma.empty;
+  const where = { businessId, ...bf, saleDate: range };
   const [summary, byDay, topProducts] = await Promise.all([
     prisma.sale.aggregate({ where, _sum: { grandTotal: true, paidAmount: true, dueAmount: true, totalTax: true, discount: true }, _count: true }),
     prisma.$queryRaw`
       SELECT DATE("saleDate") as day, SUM("grandTotal") as total, COUNT(*) as orders, SUM("profit") as profit
-      FROM "Sale" WHERE "businessId" = ${businessId}
+      FROM "Sale" WHERE "businessId" = ${businessId} ${branchSql}
         AND "saleDate" >= ${range.gte ?? new Date(0)}
         ${range.lt ? Prisma.sql`AND "saleDate" < ${range.lt}` : Prisma.empty}
       GROUP BY DATE("saleDate") ORDER BY day DESC LIMIT 120
@@ -184,9 +190,10 @@ async function salesReport(businessId, range) {
   };
 }
 
-async function purchaseReport(businessId, range) {
+async function purchaseReport(scope, range) {
+  const where = { businessId: scope.businessId, ...(scope.branchId ? { branchId: scope.branchId } : {}), purchaseDate: range };
   const summary = await prisma.purchase.aggregate({
-    where: { businessId, purchaseDate: range },
+    where,
     _sum: { grandTotal: true, paidAmount: true, dueAmount: true, totalTax: true },
     _count: true,
   });
@@ -201,11 +208,12 @@ async function purchaseReport(businessId, range) {
   };
 }
 
-async function profitReport(businessId, range) {
+async function profitReport(scope, range) {
+  const bf = scope.branchId ? { branchId: scope.branchId } : {};
   const [sales, expenses, purchases] = await Promise.all([
-    prisma.sale.aggregate({ where: { businessId, saleDate: range }, _sum: { subtotal: true, discount: true, costTotal: true, profit: true, grandTotal: true } }),
-    prisma.expense.aggregate({ where: { businessId, expenseDate: range }, _sum: { amount: true } }),
-    prisma.purchase.aggregate({ where: { businessId, purchaseDate: range }, _sum: { grandTotal: true } }),
+    prisma.sale.aggregate({ where: { businessId: scope.businessId, ...bf, saleDate: range }, _sum: { subtotal: true, discount: true, costTotal: true, profit: true, grandTotal: true } }),
+    prisma.expense.aggregate({ where: { businessId: scope.businessId, ...bf, expenseDate: range }, _sum: { amount: true } }),
+    prisma.purchase.aggregate({ where: { businessId: scope.businessId, ...bf, purchaseDate: range }, _sum: { grandTotal: true } }),
   ]);
   const grossProfit = round2(D(sales._sum.profit));
   const totalExpenses = round2(D(expenses._sum.amount));
@@ -220,18 +228,19 @@ async function profitReport(businessId, range) {
   };
 }
 
-async function expenseReport(businessId, range) {
+async function expenseReport(scope, range) {
+  const bf = scope.branchId ? { branchId: scope.branchId } : {};
   const [byCategory, total] = await Promise.all([
     prisma.expense.groupBy({
       by: ["expenseCategoryId"],
-      where: { businessId, expenseDate: range },
+      where: { businessId: scope.businessId, ...bf, expenseDate: range },
       _sum: { amount: true },
       _count: true,
     }),
-    prisma.expense.aggregate({ where: { businessId, expenseDate: range }, _sum: { amount: true } }),
+    prisma.expense.aggregate({ where: { businessId: scope.businessId, ...bf, expenseDate: range }, _sum: { amount: true } }),
   ]);
   const categories = await prisma.expenseCategory.findMany({
-    where: { businessId, id: { in: byCategory.map((b) => b.expenseCategoryId) } },
+    where: { businessId: scope.businessId, id: { in: byCategory.map((b) => b.expenseCategoryId) } },
     select: { id: true, name: true },
   });
   const catMap = Object.fromEntries(categories.map((c) => [c.id, c.name]));
@@ -245,9 +254,9 @@ async function expenseReport(businessId, range) {
   };
 }
 
-async function inventoryReport(businessId) {
+async function inventoryReport(scope) {
   const products = await prisma.product.findMany({
-    where: { businessId },
+    where: { businessId: scope.businessId },
     include: { category: { select: { name: true } } },
     orderBy: { currentStock: "asc" },
   });
@@ -272,15 +281,15 @@ async function inventoryReport(businessId) {
   return { items: rows, stockValue: round2(costValue), productCount: products.length };
 }
 
-async function outstandingReport(businessId) {
+async function outstandingReport(scope) {
   const [customers, suppliers] = await Promise.all([
     prisma.customer.findMany({
-      where: { businessId, outstanding: { gt: 0 } },
+      where: { businessId: scope.businessId, outstanding: { gt: 0 } },
       orderBy: { outstanding: "desc" },
       select: { id: true, name: true, phone: true, outstanding: true, creditLimit: true },
     }),
     prisma.supplier.findMany({
-      where: { businessId, outstanding: { gt: 0 } },
+      where: { businessId: scope.businessId, outstanding: { gt: 0 } },
       orderBy: { outstanding: "desc" },
       select: { id: true, name: true, phone: true, outstanding: true },
     }),
@@ -295,14 +304,15 @@ async function outstandingReport(businessId) {
   };
 }
 
-async function paymentReport(businessId, range) {
+async function paymentReport(scope, range) {
+  const bf = scope.branchId ? { branchId: scope.branchId } : {};
   const groupings = await prisma.payment.groupBy({
     by: ["method", "partyType"],
-    where: { businessId, paymentDate: range },
+    where: { businessId: scope.businessId, ...bf, paymentDate: range },
     _sum: { amount: true },
     _count: true,
   });
-  const totalAgg = await prisma.payment.aggregate({ where: { businessId, paymentDate: range }, _sum: { amount: true } });
+  const totalAgg = await prisma.payment.aggregate({ where: { businessId: scope.businessId, ...bf, paymentDate: range }, _sum: { amount: true } });
   return {
     total: round2(D(totalAgg._sum.amount)),
     breakdown: groupings.map((g) => ({
@@ -316,14 +326,16 @@ async function paymentReport(businessId, range) {
 
 // ---------- GST ----------
 
-async function gstSummary(businessId, range) {
+async function gstSummary(scope, range) {
+  const businessId = scope.businessId;
+  const branchSql = scope.branchId ? Prisma.sql` AND s."branchId" = ${scope.branchId}` : Prisma.empty;
   const [salesTax, purchaseTax, rateWise] = await Promise.all([
     prisma.sale.aggregate({
-      where: { businessId, saleDate: range },
+      where: { businessId, ...(scope.branchId ? { branchId: scope.branchId } : {}), saleDate: range },
       _sum: { cgst: true, sgst: true, igst: true, totalTax: true, subtotal: true, discount: true },
     }),
     prisma.purchase.aggregate({
-      where: { businessId, purchaseDate: range },
+      where: { businessId, ...(scope.branchId ? { branchId: scope.branchId } : {}), purchaseDate: range },
       _sum: { totalTax: true },
     }),
     prisma.$queryRaw`
@@ -332,7 +344,7 @@ async function gstSummary(businessId, range) {
              SUM(si."taxAmount") AS taxAmount
       FROM "SaleItem" si
       JOIN "Sale" s ON s.id = si."saleId"
-      WHERE s."businessId" = ${businessId}
+      WHERE s."businessId" = ${businessId} ${branchSql}
         AND s."saleDate" >= ${range.gte ?? new Date(0)}
         ${range.lt ? Prisma.sql`AND s."saleDate" < ${range.lt}` : Prisma.empty}
       GROUP BY si."taxRate"

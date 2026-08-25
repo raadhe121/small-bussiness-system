@@ -1,4 +1,4 @@
-# BusinessHub
+# DukaanSetu
 
 A production-ready **multi-tenant SaaS web application** for Indian small businesses — kirana stores, clothing shops, hardware stores, electronics retailers, general retail, wholesalers and small distributors.
 
@@ -69,6 +69,21 @@ small-bussiness-portal/
 │       └── utils/
 └── docs/DEPLOYMENT.md           # Ubuntu VPS + Nginx + PM2 + SSL guide · Render guide
 ```
+
+## UI & loading states
+
+**Loaders/spinners are intentionally avoided.** Every async/loading state renders a **skeleton** placeholder instead, so the layout stays stable and there is no spinner animation anywhere in the app.
+
+Skeleton components live in `frontend/src/components/Skeleton.jsx`:
+
+| Component | Use it for |
+| --- | --- |
+| `PageSkeleton` | Whole-page loading (e.g. auth guard, route-level data fetch) — returned directly from a page while `loading` |
+| `TableSkeleton` | List/table pages while the row data is loading (`loading ? <TableSkeleton /> : <table>`) |
+| `CardGridSkeleton` | Card-grid pages (e.g. roles) while loading |
+| `Skeleton` | Low-level pulsing block — compose your own placeholders |
+
+Convention: replace any `if (loading) return <Spinner />`, `PageLoader`, or `Loader2`/`animate-spin` usage with the matching skeleton above. There is no spinner component in the codebase.
 
 ## Requirements
 

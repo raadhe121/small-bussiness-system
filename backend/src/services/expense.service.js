@@ -1,6 +1,7 @@
 const prisma = require("../config/prisma");
 const { ApiError } = require("../utils/response");
 const { parsePagination, buildMeta } = require("../utils/pagination");
+const { resolveReadScope, resolveWriteBranch } = require("../utils/branchScope");
 
 /** Expenses & expense categories. */
 
@@ -9,6 +10,8 @@ function serializeExpense(e) {
     ...e,
     amount: e.amount.toNumber(),
     expenseCategory: e.expenseCategory,
+    branchId: e.branchId ?? null,
+    branchName: e.branch?.name ?? null,
   };
 }
 
@@ -36,10 +39,11 @@ async function deleteExpenseCategory(businessId, id) {
   await prisma.expenseCategory.delete({ where: { id } });
 }
 
-async function listExpenses(businessId, query) {
+async function listExpenses(scope, query) {
   const { page, limit, skip, take } = parsePagination(query);
   const where = {
-    businessId,
+    businessId: scope.businessId,
+    ...(scope.branchId ? { branchId: scope.branchId } : {}),
     ...(query.search ? {
       OR: [
         { description: { contains: query.search } },
@@ -54,7 +58,7 @@ async function listExpenses(businessId, query) {
     prisma.expense.findMany({
       where, skip, take,
       orderBy: { expenseDate: "desc" },
-      include: { expenseCategory: { select: { id: true, name: true } } },
+      include: { expenseCategory: { select: { id: true, name: true } }, branch: { select: { id: true, name: true } } },
     }),
     prisma.expense.count({ where }),
     prisma.expense.aggregate({ where, _sum: { amount: true } }),
@@ -66,16 +70,17 @@ async function listExpenses(businessId, query) {
   };
 }
 
-async function getExpense(businessId, id) {
+async function getExpense(scope, id) {
   const e = await prisma.expense.findFirst({
-    where: { id, businessId },
-    include: { expenseCategory: { select: { id: true, name: true } } },
+    where: { id, businessId: scope.businessId, ...(scope.branchId ? { branchId: scope.branchId } : {}) },
+    include: { expenseCategory: { select: { id: true, name: true } }, branch: { select: { id: true, name: true } } },
   });
   if (!e) throw new ApiError(404, "Expense not found");
   return serializeExpense(e);
 }
 
 async function createExpense(user, data) {
+  const scope = resolveWriteBranch(user, data);
   const category = await prisma.expenseCategory.findFirst({
     where: { id: data.expenseCategoryId, businessId: user.businessId },
   });
@@ -83,6 +88,7 @@ async function createExpense(user, data) {
   const e = await prisma.expense.create({
     data: {
       businessId: user.businessId,
+      branchId: scope.branchId,
       expenseCategoryId: data.expenseCategoryId,
       amount: String(data.amount),
       method: data.method,
@@ -92,17 +98,17 @@ async function createExpense(user, data) {
       expenseDate: data.expenseDate ? new Date(data.expenseDate) : new Date(),
       createdById: user.id,
     },
-    include: { expenseCategory: { select: { id: true, name: true } } },
+    include: { expenseCategory: { select: { id: true, name: true } }, branch: { select: { id: true, name: true } } },
   });
   return serializeExpense(e);
 }
 
-async function updateExpense(businessId, id, data) {
-  const existing = await prisma.expense.findFirst({ where: { id, businessId } });
+async function updateExpense(scope, id, data) {
+  const existing = await prisma.expense.findFirst({ where: { id, businessId: scope.businessId, ...(scope.branchId ? { branchId: scope.branchId } : {}) } });
   if (!existing) throw new ApiError(404, "Expense not found");
   if (data.expenseCategoryId) {
     const category = await prisma.expenseCategory.findFirst({
-      where: { id: data.expenseCategoryId, businessId },
+      where: { id: data.expenseCategoryId, businessId: scope.businessId },
     });
     if (!category) throw new ApiError(400, "Invalid expense category");
   }
@@ -116,13 +122,13 @@ async function updateExpense(businessId, id, data) {
       description: data.description === undefined ? undefined : data.description || null,
       expenseDate: data.expenseDate ? new Date(data.expenseDate) : undefined,
     },
-    include: { expenseCategory: { select: { id: true, name: true } } },
+    include: { expenseCategory: { select: { id: true, name: true } }, branch: { select: { id: true, name: true } } },
   });
   return serializeExpense(e);
 }
 
-async function deleteExpense(businessId, id) {
-  const existing = await prisma.expense.findFirst({ where: { id, businessId } });
+async function deleteExpense(scope, id) {
+  const existing = await prisma.expense.findFirst({ where: { id, businessId: scope.businessId, ...(scope.branchId ? { branchId: scope.branchId } : {}) } });
   if (!existing) throw new ApiError(404, "Expense not found");
   await prisma.expense.delete({ where: { id } });
 }
