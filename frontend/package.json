@@ -10,6 +10,7 @@
     "lint": "eslint src/"
   },
   "dependencies": {
+    "@zxing/browser": "^0.1.5",
     "axios": "^1.7.9",
     "lucide-react": "^0.474.0",
     "react": "^18.3.1",
