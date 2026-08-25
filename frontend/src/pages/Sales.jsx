@@ -9,8 +9,12 @@ import Pagination from "../components/Pagination";
 import Spinner from "../components/Spinner";
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate, titleCase } from "../utils/format";
+import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
 
 export default function Sales() {
+  const { user } = useAuth();
+  const canCreate = hasPermission(user?.role, "sales:create");
   const [search, setSearch] = useState("");
   const page = 1;
   const { data, loading, refetch } = useFetch(
@@ -24,7 +28,7 @@ export default function Sales() {
       <PageHeader
         title="Sales"
         subtitle={data?.summary ? `Total ${inr(data.summary.totalSales)} · Collected ${inr(data.summary.totalPaid)} · Due ${inr(data.summary.totalDue)}` : undefined}
-        actions={<Link to="/sales/new" className="btn-primary"><Plus className="w-4 h-4" /> New Sale</Link>}
+        actions={canCreate && <Link to="/sales/new" className="btn-primary"><Plus className="w-4 h-4" /> New Sale</Link>}
       />
 
       <SearchInput className="sm:max-w-xs mb-4" value={search} onChange={setSearch} placeholder="Search invoice or customer..." />
@@ -33,7 +37,7 @@ export default function Sales() {
         {loading ? (
           <Spinner className="block mx-auto my-14" />
         ) : data.items.length === 0 ? (
-          <EmptyState icon={ShoppingCart} title="No sales yet" subtitle="Create your first sale." action={<Link to="/sales/new" className="btn-primary"><Plus className="w-4 h-4" /> New Sale</Link>} />
+          <EmptyState icon={ShoppingCart} title="No sales yet" subtitle="Create your first sale." action={canCreate && <Link to="/sales/new" className="btn-primary"><Plus className="w-4 h-4" /> New Sale</Link>} />
         ) : (
           <>
             <div className="overflow-x-auto">

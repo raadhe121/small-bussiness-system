@@ -21,6 +21,9 @@ export default {
         "slide-in": "slide-in 0.25s ease-out",
         fade: "fade 0.2s ease-out",
       },
+      boxShadow: {
+        glass: "0 8px 32px rgba(31, 38, 135, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.6)",
+      },
       keyframes: {
         "slide-in": {
           from: { transform: "translateX(20px)", opacity: 0 },

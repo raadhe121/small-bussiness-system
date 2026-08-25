@@ -10,11 +10,15 @@ import Modal from "../components/Modal";
 import Spinner from "../components/Spinner";
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate } from "../utils/format";
+import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
 
 const METHODS = ["CASH", "UPI", "CARD", "BANK_TRANSFER"];
 
 export default function Payments() {
   const toast = useToast();
+  const { user } = useAuth();
+  const canCreate = hasPermission(user?.role, "payments:create");
   const [tab, setTab] = useState("customer");
   const [search, setSearch] = useState("");
   const [payOpen, setPayOpen] = useState(false);
@@ -60,7 +64,7 @@ export default function Payments() {
       <PageHeader
         title="Payments"
         subtitle="Money received from customers and paid to suppliers"
-        actions={<button className="btn-primary" onClick={() => { setForm({ partyId: "", amount: "", method: "CASH", reference: "", notes: "" }); setPayOpen(true); }}><Plus className="w-4 h-4" /> Record Payment</button>}
+        actions={canCreate && <button className="btn-primary" onClick={() => { setForm({ partyId: "", amount: "", method: "CASH", reference: "", notes: "" }); setPayOpen(true); }}><Plus className="w-4 h-4" /> Record Payment</button>}
       />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">

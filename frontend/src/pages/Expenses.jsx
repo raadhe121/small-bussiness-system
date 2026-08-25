@@ -10,6 +10,8 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import Spinner from "../components/Spinner";
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate, toInputDate } from "../utils/format";
+import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
 
 const emptyForm = {
   expenseCategoryId: "", amount: "", method: "CASH",
@@ -18,6 +20,8 @@ const emptyForm = {
 
 export default function Expenses() {
   const toast = useToast();
+  const { user } = useAuth();
+  const canManage = hasPermission(user?.role, "expenses:manage");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
@@ -88,7 +92,7 @@ export default function Expenses() {
       <PageHeader
         title="Expenses"
         subtitle={data?.summary ? `Total in view: ${inr(data.summary.totalAmount)}` : undefined}
-        actions={<button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add Expense</button>}
+        actions={canManage && <button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add Expense</button>}
       />
 
       <SearchInput className="sm:max-w-xs mb-4" value={search} onChange={setSearch} placeholder="Search expenses..." />
@@ -97,7 +101,7 @@ export default function Expenses() {
         {loading ? (
           <Spinner className="block mx-auto my-14" />
         ) : data.items.length === 0 ? (
-          <EmptyState icon={ReceiptIndianRupee} title="No expenses yet" subtitle="Track rent, salaries, transport and more." action={<button className="btn-primary" onClick={openCreate}>Add Expense</button>} />
+          <EmptyState icon={ReceiptIndianRupee} title="No expenses yet" subtitle="Track rent, salaries, transport and more." action={canManage && <button className="btn-primary" onClick={openCreate}>Add Expense</button>} />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -122,7 +126,9 @@ export default function Expenses() {
                       <td className="td text-right font-semibold text-red-500">{inr(e.amount)}</td>
                       <td className="td">
                         <div className="flex justify-end gap-1">
-                          <button onClick={() => openEdit(e)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"><Pencil className="w-4 h-4" /></button>
+                          {canManage && (
+                            <button onClick={() => openEdit(e)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"><Pencil className="w-4 h-4" /></button>
+                          )}
                           <button onClick={() => setDeleteTarget(e)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
                         </div>
                       </td>

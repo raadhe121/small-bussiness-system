@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import api from "../services/api";
+import { setUserPermissions } from "../utils/permissions";
 
 const AuthContext = createContext(null);
 
@@ -21,10 +22,12 @@ export function AuthProvider({ children }) {
     }
     try {
       const res = await api.get("/auth/me");
+      setUserPermissions(res.data.data?.permissions);
       setUser(res.data.data);
       localStorage.setItem("bh_user", JSON.stringify(res.data.data));
     } catch {
       setUser(null);
+      setUserPermissions(null);
       localStorage.removeItem("bh_token");
       localStorage.removeItem("bh_user");
     } finally {
@@ -39,6 +42,7 @@ export function AuthProvider({ children }) {
   const applyAuth = (data) => {
     localStorage.setItem("bh_token", data.token);
     localStorage.setItem("bh_user", JSON.stringify(data.user));
+    setUserPermissions(data.user?.permissions);
     setUser(data.user);
     return data.user;
   };

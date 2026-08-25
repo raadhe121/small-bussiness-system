@@ -16,7 +16,7 @@ export default function ProtectedRoute({ children, requiresBusiness = true, gues
 
   if (guestOnly) {
     if (user) {
-      return <Navigate to={user.businessId ? "/dashboard" : "/onboarding"} replace />;
+      return <Navigate to={user.isPlatformAdmin ? "/platform" : user.businessId ? "/dashboard" : "/onboarding"} replace />;
     }
     return children;
   }

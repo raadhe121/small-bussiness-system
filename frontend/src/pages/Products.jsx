@@ -12,6 +12,8 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import Spinner from "../components/Spinner";
 import EmptyState from "../components/EmptyState";
 import { inr } from "../utils/format";
+import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
 
 const UNITS = ["PCS", "KG", "GM", "LITRE", "ML", "METER", "BOX", "PACKET", "DOZEN", "BAG"];
 const emptyForm = {
@@ -22,6 +24,8 @@ const emptyForm = {
 
 export default function Products() {
   const toast = useToast();
+  const { user } = useAuth();
+  const canManage = hasPermission(user?.role, "products:manage");
   const [params, setParams] = useSearchParams();
   const search = params.get("search") || "";
   const page = parseInt(params.get("page") || "1", 10);
@@ -95,7 +99,7 @@ export default function Products() {
       <PageHeader
         title="Products"
         subtitle="Your catalog with prices, GST rates and stock"
-        actions={<button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add Product</button>}
+        actions={canManage && <button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add Product</button>}
       />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -115,7 +119,7 @@ export default function Products() {
             icon={Package}
             title="No products found"
             subtitle={search ? "Try a different search." : "Add your first product to start selling."}
-            action={!search && <button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add Product</button>}
+            action={!search && canManage && <button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add Product</button>}
           />
         ) : (
           <>
@@ -154,12 +158,16 @@ export default function Products() {
                       </td>
                       <td className="td">
                         <div className="flex justify-end gap-1">
-                          <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500" title="Edit">
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => setDeleteTarget(p)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600" title="Delete">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {canManage && (
+                            <>
+                              <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500" title="Edit">
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => setDeleteTarget(p)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600" title="Delete">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

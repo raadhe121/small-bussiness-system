@@ -19,7 +19,7 @@ export default function GST() {
   const [to, setTo] = useState(toISO(new Date()));
   const params = preset === "custom" ? { from: `${from}T00:00:00Z`, to: `${to}T23:59:59Z` } : { preset };
 
-  const { data, loading } = useFetch(() => api.get("/gst/summary", { params }).then((r) => r.data.data), [preset, from, to]);
+  const { data, loading, error } = useFetch(() => api.get("/gst/summary", { params }).then((r) => r.data.data), [preset, from, to]);
 
   return (
     <div>
@@ -53,6 +53,8 @@ export default function GST() {
 
       {loading ? (
         <Spinner className="block mx-auto my-16" />
+      ) : error || !data ? (
+        <div className="card p-8 text-center text-slate-500">Could not load GST summary. Please try again.</div>
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-5">

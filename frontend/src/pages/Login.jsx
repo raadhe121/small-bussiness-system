@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Store } from "lucide-react";
+import { ShopIllustration } from "../components/Illustrations";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { errMsg } from "../services/api";
@@ -19,7 +20,7 @@ export default function Login() {
     try {
       const user = await login(form.email, form.password);
       toast.success("Welcome back!");
-      navigate(location.state?.from?.pathname || (user.businessId ? "/dashboard" : "/onboarding"), { replace: true });
+      navigate(location.state?.from?.pathname || (user.isPlatformAdmin ? "/platform" : user.businessId ? "/dashboard" : "/onboarding"), { replace: true });
     } catch (err) {
       toast.error(errMsg(err));
     } finally {
@@ -37,8 +38,9 @@ export default function Login() {
       </Link>
 
       <div className="card w-full max-w-md p-7">
-        <h1 className="text-xl font-bold text-slate-800">Sign in</h1>
-        <p className="text-sm text-slate-500 mt-1 mb-6">Manage your business from anywhere.</p>
+        <ShopIllustration className="w-28 h-auto mx-auto mb-4" />
+        <h1 className="text-xl font-bold text-slate-800 text-center">Sign in</h1>
+        <p className="text-sm text-slate-500 mt-1 mb-6 text-center">Manage your business from anywhere.</p>
 
         <form onSubmit={submit} className="space-y-4">
           <div>

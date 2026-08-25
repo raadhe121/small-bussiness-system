@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Store } from "lucide-react";
+import { GrowthIllustration } from "../components/Illustrations";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import api, { errMsg } from "../services/api";
@@ -38,6 +39,7 @@ export default function Register() {
       </Link>
 
       <div className="card w-full max-w-md p-7">
+        <GrowthIllustration className="w-32 h-auto mx-auto mb-4" />
         <h1 className="text-xl font-bold text-slate-800">Create your account</h1>
         <p className="text-sm text-slate-500 mt-1 mb-6">
           Free to start. Set up your business in the next step.

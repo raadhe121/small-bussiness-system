@@ -8,6 +8,8 @@ import Modal from "../components/Modal";
 import Spinner from "../components/Spinner";
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate, titleCase } from "../utils/format";
+import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
 
 const METHODS = ["CASH", "UPI", "CARD", "BANK_TRANSFER"];
 
@@ -18,6 +20,8 @@ export default function PartyDetail({ mode }) {
   const label = isCustomer ? "Customer" : "Supplier";
   const { id } = useParams();
   const toast = useToast();
+  const { user } = useAuth();
+  const canPay = hasPermission(user?.role, "payments:create");
 
   const [payOpen, setPayOpen] = useState(false);
   const [payForm, setPayForm] = useState({ amount: "", method: "CASH", reference: "", notes: "" });
@@ -82,7 +86,7 @@ export default function PartyDetail({ mode }) {
                 {inr(party.outstanding)}
               </p>
             </div>
-            {Number(party.outstanding) > 0 && (
+            {canPay && Number(party.outstanding) > 0 && (
               <button
                 className="btn-primary w-full sm:w-auto"
                 onClick={() => {

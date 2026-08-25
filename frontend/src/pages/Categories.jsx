@@ -9,9 +9,13 @@ import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import Spinner from "../components/Spinner";
 import EmptyState from "../components/EmptyState";
+import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
 
 export default function Categories() {
   const toast = useToast();
+  const { user } = useAuth();
+  const canManage = hasPermission(user?.role, "categories:manage");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
@@ -56,7 +60,7 @@ export default function Categories() {
       <PageHeader
         title="Categories"
         subtitle="Organize your products"
-        actions={<button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add Category</button>}
+        actions={canManage && <button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add Category</button>}
       />
 
       <SearchInput className="sm:max-w-xs mb-4" value={search} onChange={setSearch} placeholder="Search categories..." />
@@ -69,7 +73,7 @@ export default function Categories() {
             icon={Tags}
             title="No categories"
             subtitle="Group related products for easier management and reporting."
-            action={<button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add Category</button>}
+            action={canManage && <button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add Category</button>}
           />
         ) : (
           <div className="overflow-x-auto">
@@ -92,8 +96,12 @@ export default function Categories() {
                     </td>
                     <td className="td">
                       <div className="flex justify-end gap-1">
-                        <button onClick={() => openEdit(c)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"><Pencil className="w-4 h-4" /></button>
-                        <button onClick={() => setDeleteTarget(c)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                        {canManage && (
+                          <>
+                            <button onClick={() => openEdit(c)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"><Pencil className="w-4 h-4" /></button>
+                            <button onClick={() => setDeleteTarget(c)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

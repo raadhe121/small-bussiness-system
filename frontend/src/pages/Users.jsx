@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { UserCog, Plus, Pencil } from "lucide-react";
+import { UserCog, Plus, Pencil, Shield } from "lucide-react";
 import api, { errMsg } from "../services/api";
 import useFetch from "../hooks/useFetch";
 import { useAuth } from "../context/AuthContext";
@@ -11,40 +11,47 @@ import EmptyState from "../components/EmptyState";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { fmtDateTime, ROLE_LABELS } from "../utils/format";
 
-const ROLES = ["ADMIN", "MANAGER", "EMPLOYEE", "ACCOUNTANT"];
+const BUILTIN_ROLES = ["ADMIN", "MANAGER", "EMPLOYEE", "ACCOUNTANT"];
 
 export default function Users() {
   const toast = useToast();
   const { user: me, refresh } = useAuth();
+  const isOwner = me?.role === "OWNER";
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", role: "EMPLOYEE" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", role: "EMPLOYEE", roleId: "" });
   const [disableTarget, setDisableTarget] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const { data, loading, refetch } = useFetch(() => api.get("/users").then((r) => r.data.data), []);
+  const { data: rolesData } = useFetch(() => api.get("/roles").then((r) => r.data.data), []);
+  const customRoles = rolesData?.custom || [];
 
   const openCreate = () => {
     setEditItem(null);
-    setForm({ name: "", email: "", phone: "", password: "", role: "EMPLOYEE" });
+    setForm({ name: "", email: "", phone: "", password: "", role: "EMPLOYEE", roleId: "" });
     setShowForm(true);
   };
 
   const openEdit = (u) => {
     setEditItem(u);
-    setForm({ name: u.name, email: u.email, phone: u.phone || "", password: "", role: u.role });
+    setForm({ name: u.name, email: u.email, phone: u.phone || "", password: "", role: u.role, roleId: u.customRoleId || "" });
     setShowForm(true);
   };
+
+  /** Role payload: a custom role id wins; otherwise the built-in enum is sent. */
+  const rolePayload = () =>
+    form.roleId ? { roleId: form.roleId } : { role: form.role };
 
   const save = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
       if (editItem) {
-        await api.put(`/users/${editItem.id}`, { name: form.name, phone: form.phone, role: form.role });
+        await api.put(`/users/${editItem.id}`, { name: form.name, phone: form.phone, ...rolePayload() });
         toast.success("Team member updated");
       } else {
-        await api.post("/users", form);
+        await api.post("/users", { ...form, ...rolePayload() });
         toast.success("Team member added — share the credentials securely");
       }
       setShowForm(false);
@@ -74,8 +81,15 @@ export default function Users() {
       <PageHeader
         title="Team"
         subtitle="Employees and their access levels"
-        actions={<button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add member</button>}
+        actions={isOwner && <button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add member</button>}
       />
+
+      {!isOwner && (
+        <div className="card p-4 mb-5 flex items-center gap-3 text-sm text-slate-500">
+          <Shield className="w-4 h-4 text-slate-400 shrink-0" />
+          Only the business owner can add members or change roles.
+        </div>
+      )}
 
       <div className="card overflow-hidden">
         {loading ? (
@@ -107,12 +121,16 @@ export default function Users() {
                       </div>
                     </td>
                     <td className="td">
-                      <span className={`badge ${
-                        u.role === "OWNER" ? "bg-amber-100 text-amber-700"
-                          : u.role === "ADMIN" ? "bg-purple-100 text-purple-700"
-                          : u.role === "ACCOUNTANT" ? "bg-blue-100 text-blue-700"
-                          : "bg-slate-100 text-slate-600"
-                      }`}>{ROLE_LABELS[u.role]}</span>
+                      {u.customRole ? (
+                        <span className="badge bg-indigo-100 text-indigo-700"><Shield className="w-3 h-3" /> {u.customRole.name}</span>
+                      ) : (
+                        <span className={`badge ${
+                          u.role === "OWNER" ? "bg-amber-100 text-amber-700"
+                            : u.role === "ADMIN" ? "bg-purple-100 text-purple-700"
+                            : u.role === "ACCOUNTANT" ? "bg-blue-100 text-blue-700"
+                            : "bg-slate-100 text-slate-600"
+                        }`}>{ROLE_LABELS[u.role]}</span>
+                      )}
                     </td>
                     <td className="td">
                       <span className={`badge ${u.isActive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
@@ -121,7 +139,7 @@ export default function Users() {
                     </td>
                     <td className="td text-slate-500">{u.lastLoginAt ? fmtDateTime(u.lastLoginAt) : "Never"}</td>
                     <td className="td">
-                      {u.role !== "OWNER" && (
+                      {u.role !== "OWNER" && isOwner && (
                         <div className="flex justify-end gap-1">
                           <button onClick={() => openEdit(u)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"><Pencil className="w-4 h-4" /></button>
                           {u.id !== me?.id && (
@@ -151,6 +169,9 @@ export default function Users() {
           <li><b>Manager</b> — sales, purchases, inventory, parties, reports</li>
           <li><b>Accountant</b> — payments, expenses, GST & financial reports</li>
           <li><b>Employee</b> — create sales, view products & customers</li>
+          {customRoles.map((r) => (
+            <li key={r.id}><b>{r.name}</b> — custom role · {r.permissions.length} permissions</li>
+          ))}
         </ul>
       </div>
 
@@ -177,10 +198,32 @@ export default function Users() {
             <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </div>
           <div>
-            <label className="label">Role *</label>
-            <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-              {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+            <label className="label">Role * {isOwner ? "" : "(owner only)"}</label>
+            <select
+              className="input disabled:opacity-60"
+              value={form.roleId || form.role}
+              onChange={(e) =>
+                setForm(
+                  e.target.value.startsWith("custom:")
+                    ? { ...form, roleId: e.target.value.slice(7), role: "EMPLOYEE" }
+                    : { ...form, roleId: "", role: e.target.value }
+                )
+              }
+            >
+              <optgroup label="Built-in roles">
+                {BUILTIN_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+              </optgroup>
+              {customRoles.length > 0 && (
+                <optgroup label="Custom roles">
+                  {customRoles.map((r) => <option key={r.id} value={`custom:${r.id}`}>{r.name}</option>)}
+                </optgroup>
+              )}
             </select>
+            {customRoles.length === 0 && (
+              <p className="text-xs text-slate-400 mt-1.5">
+                Tip: create custom roles under Account → Roles & Permissions.
+              </p>
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <button type="button" className="btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>

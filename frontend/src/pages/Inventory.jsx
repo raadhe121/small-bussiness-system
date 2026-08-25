@@ -10,10 +10,14 @@ import Pagination from "../components/Pagination";
 import Modal from "../components/Modal";
 import Spinner from "../components/Spinner";
 import EmptyState from "../components/EmptyState";
+import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
 import { inr, compactInr } from "../utils/format";
 
 export default function Inventory() {
   const toast = useToast();
+  const { user } = useAuth();
+  const canManage = hasPermission(user?.role, "inventory:manage");
   const [params, setParams] = useSearchParams();
   const search = params.get("search") || "";
   const lowStock = params.get("lowStock") === "true" || false;
@@ -133,9 +137,11 @@ export default function Inventory() {
                       <td className="td text-right">{inr(r.purchasePrice)}</td>
                       <td className="td text-right font-semibold">{inr(r.stockValue)}</td>
                       <td className="td">
-                        <button onClick={() => openAdjust(r)} className="btn-secondary !py-1.5 !px-2.5 text-xs ml-auto flex items-center gap-1.5">
-                          <SlidersHorizontal className="w-3.5 h-3.5" /> Adjust
-                        </button>
+                        {canManage && (
+                          <button onClick={() => openAdjust(r)} className="btn-secondary !py-1.5 !px-2.5 text-xs ml-auto flex items-center gap-1.5">
+                            <SlidersHorizontal className="w-3.5 h-3.5" /> Adjust
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
