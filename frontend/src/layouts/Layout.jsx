@@ -30,9 +30,9 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import api, { errMsg } from "../services/api";
+import InstallPrompt from "../components/InstallPrompt";
 import { ROLE_LABELS, fmtDateTime } from "../utils/format";
 import { hasPermission } from "../utils/permissions";
-import InstallPrompt from "../components/InstallPrompt";
 import OfflineBar from "../components/OfflineBar";
 
 const NAV_GROUPS = [
@@ -566,14 +566,13 @@ export default function Layout() {
 
       {/* Page content */}
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1400px] w-full mx-auto animate-fade">
+        <InstallPrompt />
         <Outlet />
       </main>
 
       <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
         BusinessHub — made for Indian small businesses
       </footer>
-
-      <InstallPrompt />
     </div>
   );
 }

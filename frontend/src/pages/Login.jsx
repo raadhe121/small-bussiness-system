@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Store } from "lucide-react";
 import { ShopIllustration } from "../components/Illustrations";
+import InstallPrompt from "../components/InstallPrompt";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { errMsg } from "../services/api";
@@ -36,6 +37,8 @@ export default function Login() {
         </span>
         <span className="text-white font-bold text-2xl">BusinessHub</span>
       </Link>
+
+      <InstallPrompt />
 
       <div className="card w-full max-w-md p-7">
         <ShopIllustration className="w-28 h-auto mx-auto mb-4" />
