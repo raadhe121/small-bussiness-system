@@ -9,9 +9,14 @@ import Modal from "../components/Modal";
 import EmptyState from "../components/EmptyState";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { TableSkeleton } from "../components/Skeleton";
+import useSelection from "../hooks/useSelection";
+import BulkDeleteBar from "../components/BulkDeleteBar";
+import { useAuth } from "../context/AuthContext";
 
 export default function Branches() {
   const toast = useToast();
+  const { user } = useAuth();
+  const canManage = ["OWNER", "ADMIN", "MANAGER"].includes(user?.role);
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [form, setForm] = useState({ name: "", code: "", address: "", phone: "", isDefault: false });
@@ -20,6 +25,19 @@ export default function Branches() {
 
   const { data, loading, refetch } = useFetch(() => api.get("/branches").then((r) => r.data.data?.items || []), []);
   const branches = data || [];
+  const selection = useSelection(branches);
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await api.delete("/branches/bulk", { data: { ids: selection.selectedIds } });
+      const { deleted, failed } = res.data.data || {};
+      toast.success(`Deleted ${deleted || 0} branches${failed?.length ? `, ${failed.length} skipped` : ""}`);
+      selection.clear();
+      refetch();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
 
   const openCreate = () => {
     setEditItem(null);
@@ -77,6 +95,8 @@ export default function Branches() {
         actions={<button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add branch</button>}
       />
 
+      <BulkDeleteBar count={selection.count} label="branches" onDelete={handleBulkDelete} onClear={selection.clear} />
+
       <div className="card overflow-hidden">
         {loading ? (
           <TableSkeleton />
@@ -92,6 +112,9 @@ export default function Branches() {
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
+                  <th className="th w-10">
+                    <input type="checkbox" checked={selection.allSelected} onChange={(e) => selection.toggleAll(e.target.checked)} aria-label="Select all" />
+                  </th>
                   <th className="th">Branch</th>
                   <th className="th">Code</th>
                   <th className="th">Address</th>
@@ -102,7 +125,10 @@ export default function Branches() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {branches.map((b) => (
-                  <tr key={b.id} className="hover:bg-slate-50/60">
+                  <tr key={b.id} className={selection.has(b.id) ? "hover:bg-slate-50/60 bg-brand-50/40" : "hover:bg-slate-50/60"}>
+                    <td className="td">
+                      <input type="checkbox" checked={selection.has(b.id)} onChange={() => selection.toggle(b.id)} aria-label="Select row" />
+                    </td>
                     <td className="td">
                       <div className="flex items-center gap-3">
                         <span className="w-9 h-9 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center shrink-0">

@@ -2,26 +2,45 @@ import { useState } from "react";
 import { TableSkeleton, CardGridSkeleton } from "../components/Skeleton";
 import { Link } from "react-router-dom";
 import { ShoppingCart, Plus, Eye, RotateCcw } from "lucide-react";
-import api from "../services/api";
+import api, { errMsg } from "../services/api";
 import useFetch from "../hooks/useFetch";
+import { useToast } from "../context/ToastContext";
 import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
 import EmptyState from "../components/EmptyState";
+import useSelection from "../hooks/useSelection";
+import BulkDeleteBar from "../components/BulkDeleteBar";
 import { inr, fmtDate, titleCase } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";
 
 export default function Sales() {
+  const toast = useToast();
   const { user } = useAuth();
   const canCreate = hasPermission(user?.role, "sales:create");
+  const canManage = hasPermission(user?.role, "sales:manage");
   const [search, setSearch] = useState("");
   const page = 1;
   const { data, loading, refetch } = useFetch(
     () => api.get("/sales", { params: { search: search || undefined, limit: 15 } }).then((r) => r.data.data),
     [search]
   );
-  void refetch; void page;
+  void page;
+  const items = data?.items || [];
+  const selection = useSelection(items);
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await api.delete("/sales/bulk", { data: { ids: selection.selectedIds } });
+      const { deleted, failed } = res.data.data || {};
+      toast.success(`Deleted ${deleted || 0} sales${failed?.length ? `, ${failed.length} skipped` : ""}`);
+      selection.clear();
+      refetch();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
 
   return (
     <div>
@@ -33,6 +52,8 @@ export default function Sales() {
 
       <SearchInput className="sm:max-w-xs mb-4" value={search} onChange={setSearch} placeholder="Search invoice or customer..." />
 
+      <BulkDeleteBar count={selection.count} label="sales" onDelete={handleBulkDelete} onClear={selection.clear} />
+
       <div className="card overflow-hidden">
         {loading ? (<TableSkeleton rows={8} cols={7} />) : data.items.length === 0 ? (
           <EmptyState icon={ShoppingCart} title="No sales yet" subtitle="Create your first sale." action={canCreate && <Link to="/sales/new" className="btn-primary"><Plus className="w-4 h-4" /> New Sale</Link>} />
@@ -42,6 +63,9 @@ export default function Sales() {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
+                    <th className="th w-10">
+                      <input type="checkbox" checked={selection.allSelected} onChange={(e) => selection.toggleAll(e.target.checked)} aria-label="Select all" />
+                    </th>
                     <th className="th">Invoice</th>
                     <th className="th">Customer</th>
                     <th className="th">Branch</th>
@@ -54,7 +78,10 @@ export default function Sales() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {data.items.map((s) => (
-                    <tr key={s.id} className="hover:bg-slate-50/60">
+                    <tr key={s.id} className={selection.has(s.id) ? "hover:bg-slate-50/60 bg-brand-50/40" : "hover:bg-slate-50/60"}>
+                      <td className="td">
+                        <input type="checkbox" checked={selection.has(s.id)} onChange={() => selection.toggle(s.id)} aria-label="Select row" />
+                      </td>
                       <td className="td font-semibold">{s.invoiceNo}</td>
                       <td className="td">{s.customer?.name || <span className="text-slate-400">Walk-in</span>}</td>
                       <td className="td text-slate-500">{s.branchName || "—"}</td>

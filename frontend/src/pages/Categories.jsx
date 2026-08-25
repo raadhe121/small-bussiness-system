@@ -9,6 +9,8 @@ import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
+import useSelection from "../hooks/useSelection";
+import BulkDeleteBar from "../components/BulkDeleteBar";
 
 import EmptyState from "../components/EmptyState";
 import { useAuth } from "../context/AuthContext";
@@ -29,6 +31,20 @@ export default function Categories() {
     () => api.get("/categories", { params: { search: search || undefined } }).then((r) => r.data.data),
     [search]
   );
+  const items = data?.items || [];
+  const selection = useSelection(items);
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await api.delete("/categories/bulk", { data: { ids: selection.selectedIds } });
+      const { deleted, failed } = res.data.data || {};
+      toast.success(`Deleted ${deleted || 0} categories${failed?.length ? `, ${failed.length} skipped` : ""}`);
+      selection.clear();
+      refetch();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
 
   const openCreate = () => {
     setEditItem(null);
@@ -68,6 +84,8 @@ export default function Categories() {
 
       <SearchInput className="sm:max-w-xs mb-4" value={search} onChange={setSearch} placeholder="Search categories..." />
 
+      <BulkDeleteBar count={selection.count} label="categories" onDelete={handleBulkDelete} onClear={selection.clear} />
+
       <div className="card overflow-hidden">
         {loading ? (
           <TableSkeleton />
@@ -83,6 +101,9 @@ export default function Categories() {
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
+                  <th className="th w-10">
+                    <input type="checkbox" checked={selection.allSelected} onChange={(e) => selection.toggleAll(e.target.checked)} aria-label="Select all" />
+                  </th>
                   <th className="th">Name</th>
                   <th className="th">Description</th>
                   <th className="th text-center">Products</th>
@@ -91,8 +112,11 @@ export default function Categories() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {data.items.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/60">
-                    <td className="td font-medium">{c.name}</td>
+                  <tr key={c.id} className={selection.has(c.id) ? "hover:bg-slate-50/60 bg-brand-50/40" : "hover:bg-slate-50/60"}>
+                    <td className="td">
+                    <input type="checkbox" checked={selection.has(c.id)} onChange={() => selection.toggle(c.id)} aria-label={`Select ${c.name}`} />
+                  </td>
+                  <td className="td font-medium">{c.name}</td>
                     <td className="td text-slate-500 max-w-md truncate">{c.description || "—"}</td>
                     <td className="td text-center">
                       <span className="badge bg-brand-50 text-brand-700">{c.productCount}</span>

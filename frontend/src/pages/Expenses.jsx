@@ -9,6 +9,8 @@ import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
+import useSelection from "../hooks/useSelection";
+import BulkDeleteBar from "../components/BulkDeleteBar";
 
 import EmptyState from "../components/EmptyState";
 import { inr, fmtDate, toInputDate } from "../utils/format";
@@ -35,6 +37,20 @@ export default function Expenses() {
     () => api.get("/expenses", { params: { search: search || undefined } }).then((r) => r.data.data),
     [search]
   );
+  const items = data?.items || [];
+  const selection = useSelection(items);
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await api.delete("/expenses/bulk", { data: { ids: selection.selectedIds } });
+      const { deleted, failed } = res.data.data || {};
+      toast.success(`Deleted ${deleted || 0} expenses${failed?.length ? `, ${failed.length} skipped` : ""}`);
+      selection.clear();
+      refetch();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
   const { data: categories, refetch: refetchCategories } = useFetch(
     () => api.get("/expenses/categories").then((r) => r.data.data),
     []
@@ -108,6 +124,8 @@ export default function Expenses() {
 
       <SearchInput className="sm:max-w-xs mb-4" value={search} onChange={setSearch} placeholder="Search expenses..." />
 
+      <BulkDeleteBar count={selection.count} label="expenses" onDelete={handleBulkDelete} onClear={selection.clear} />
+
       <div className="card overflow-hidden">
         {loading ? (
           <TableSkeleton />
@@ -119,6 +137,9 @@ export default function Expenses() {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
+                    <th className="th w-10">
+                      <input type="checkbox" checked={selection.allSelected} onChange={(e) => selection.toggleAll(e.target.checked)} aria-label="Select all" />
+                    </th>
                     <th className="th">Date</th>
                     <th className="th">Category</th>
                     <th className="th">Branch</th>
@@ -130,7 +151,10 @@ export default function Expenses() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {data.items.map((e) => (
-                    <tr key={e.id} className="hover:bg-slate-50/60">
+                    <tr key={e.id} className={selection.has(e.id) ? "hover:bg-slate-50/60 bg-brand-50/40" : "hover:bg-slate-50/60"}>
+                      <td className="td">
+                        <input type="checkbox" checked={selection.has(e.id)} onChange={() => selection.toggle(e.id)} aria-label="Select row" />
+                      </td>
                       <td className="td">{fmtDate(e.expenseDate)}</td>
                       <td className="td"><span className="badge bg-brand-50 text-brand-700">{e.expenseCategory.name}</span></td>
                       <td className="td text-slate-500">{e.branchName || "—"}</td>

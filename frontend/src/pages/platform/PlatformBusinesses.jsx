@@ -12,6 +12,8 @@ import SearchInput from "../../components/SearchInput";
 import Pagination from "../../components/Pagination";
 import Modal from "../../components/Modal";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import useSelection from "../../hooks/useSelection";
+import BulkDeleteBar from "../../components/BulkDeleteBar";
 import { fmtDate, fmtDateTime } from "../../utils/format";
 
 const emptyForm = { name: "", ownerName: "", phone: "", email: "", gstin: "" };
@@ -32,6 +34,20 @@ export default function PlatformBusinesses() {
     () => api.get(query).then((r) => r.data.data),
     [query]
   );
+  const items = data?.items || [];
+  const selection = useSelection(items);
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await api.delete("/platform/businesses/bulk", { data: { ids: selection.selectedIds } });
+      const { deleted, failed } = res.data.data || {};
+      toast.success(`Deleted ${deleted || 0} businesses${failed?.length ? `, ${failed.length} skipped` : ""}`);
+      selection.clear();
+      refetch();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
 
   const openEdit = (b) => {
     setEditTarget(b);
@@ -109,6 +125,8 @@ export default function PlatformBusinesses() {
         </select>
       </div>
 
+      <BulkDeleteBar count={selection.count} label="businesses" onDelete={handleBulkDelete} onClear={selection.clear} />
+
       <div className="card overflow-hidden">
         {loading ? (
           <TableSkeleton />
@@ -118,20 +136,26 @@ export default function PlatformBusinesses() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="th">Business</th>
-                  <th className="th">Owner</th>
-                  <th className="th">Users</th>
-                  <th className="th">Data</th>
-                  <th className="th">Joined</th>
-                  <th className="th">Status</th>
-                  <th className="th"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {data.items.map((b) => (
-                  <tr key={b.id} className="hover:bg-slate-50/60">
-                    <td className="td">
+                  <tr>
+                    <th className="th w-10">
+                      <input type="checkbox" checked={selection.allSelected} onChange={(e) => selection.toggleAll(e.target.checked)} aria-label="Select all" />
+                    </th>
+                    <th className="th">Business</th>
+                    <th className="th">Owner</th>
+                    <th className="th">Users</th>
+                    <th className="th">Data</th>
+                    <th className="th">Joined</th>
+                    <th className="th">Status</th>
+                    <th className="th"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {data.items.map((b) => (
+                    <tr key={b.id} className={selection.has(b.id) ? "hover:bg-slate-50/60 bg-brand-50/40" : "hover:bg-slate-50/60"}>
+                      <td className="td">
+                        <input type="checkbox" checked={selection.has(b.id)} onChange={() => selection.toggle(b.id)} aria-label="Select row" />
+                      </td>
+                      <td className="td">
                       <div className="flex items-center gap-3">
                         <span className="w-9 h-9 rounded-lg bg-brand-100 text-brand-700 font-bold flex items-center justify-center text-sm shrink-0">
                           {b.name.charAt(0).toUpperCase()}

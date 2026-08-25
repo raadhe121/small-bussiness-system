@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TableSkeleton, CardGridSkeleton } from "../../components/Skeleton";
-import { Trash2, Users2 } from "lucide-react";
+import { Trash2, Users2, Plus } from "lucide-react";
 import api, { errMsg } from "../../services/api";
 import { submitOrQueue } from "../../services/offlineQueue";
 import useFetch from "../../hooks/useFetch";
@@ -12,6 +12,9 @@ import EmptyState from "../../components/EmptyState";
 import SearchInput from "../../components/SearchInput";
 import Pagination from "../../components/Pagination";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import Modal from "../../components/Modal";
+import useSelection from "../../hooks/useSelection";
+import BulkDeleteBar from "../../components/BulkDeleteBar";
 import { fmtDateTime, ROLE_LABELS } from "../../utils/format";
 
 const ROLES = ["OWNER", "ADMIN", "MANAGER", "EMPLOYEE", "ACCOUNTANT"];
@@ -34,8 +37,56 @@ export default function PlatformUsers() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ businessId: "", name: "", email: "", password: "", phone: "", role: "EMPLOYEE" });
+  const [businesses, setBusinesses] = useState([]);
+
   const query = `/platform/users?page=${page}&limit=15${search ? `&search=${encodeURIComponent(search)}` : ""}${role ? `&role=${role}` : ""}${status ? `&status=${status}` : ""}`;
   const { data, loading, refetch } = useFetch(() => api.get(query).then((r) => r.data.data), [query]);
+  const items = data?.items || [];
+  const selection = useSelection(items);
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await api.delete("/platform/users/bulk", { data: { ids: selection.selectedIds } });
+      const { deleted, failed } = res.data.data || {};
+      toast.success(`Deleted ${deleted || 0} users${failed?.length ? `, ${failed.length} skipped` : ""}`);
+      selection.clear();
+      refetch();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
+
+  const loadBusinesses = async () => {
+    try {
+      const res = await api.get("/platform/businesses?limit=300");
+      setBusinesses(res.data.data?.items || []);
+    } catch {
+      setBusinesses([]);
+    }
+  };
+
+  const openCreate = () => {
+    setForm({ businessId: "", name: "", email: "", password: "", phone: "", role: "EMPLOYEE" });
+    setShowForm(true);
+    loadBusinesses();
+  };
+
+  const createUser = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.post("/platform/users", { ...form, phone: form.phone || undefined });
+      toast.success(`User ${form.name} created`);
+      setShowForm(false);
+      refetch();
+    } catch (err) {
+      toast.error(errMsg(err));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const changeRole = async (u, newRole) => {
     try {
@@ -76,7 +127,11 @@ export default function PlatformUsers() {
 
   return (
     <div>
-      <PageHeader title="All Users" subtitle="Every account across all businesses" />
+      <PageHeader
+        title="All Users"
+        subtitle="Every account across all businesses"
+        actions={<button className="btn-primary" onClick={openCreate}><Plus className="w-4 h-4" /> Add user</button>}
+      />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <SearchInput
@@ -96,6 +151,8 @@ export default function PlatformUsers() {
         </select>
       </div>
 
+      <BulkDeleteBar count={selection.count} label="users" onDelete={handleBulkDelete} onClear={selection.clear} />
+
       <div className="card overflow-hidden">
         {loading ? (
           <TableSkeleton />
@@ -105,19 +162,25 @@ export default function PlatformUsers() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="th">User</th>
-                  <th className="th">Business</th>
-                  <th className="th">Role</th>
-                  <th className="th">Status</th>
-                  <th className="th">Last login</th>
-                  <th className="th"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {data.items.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50/60">
-                    <td className="td">
+                  <tr>
+                    <th className="th w-10">
+                      <input type="checkbox" checked={selection.allSelected} onChange={(e) => selection.toggleAll(e.target.checked)} aria-label="Select all" />
+                    </th>
+                    <th className="th">User</th>
+                    <th className="th">Business</th>
+                    <th className="th">Role</th>
+                    <th className="th">Status</th>
+                    <th className="th">Last login</th>
+                    <th className="th"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {data.items.map((u) => (
+                    <tr key={u.id} className={selection.has(u.id) ? "hover:bg-slate-50/60 bg-brand-50/40" : "hover:bg-slate-50/60"}>
+                      <td className="td">
+                        <input type="checkbox" checked={selection.has(u.id)} onChange={() => selection.toggle(u.id)} aria-label="Select row" />
+                      </td>
+                      <td className="td">
                       <div className="flex items-center gap-3">
                         <span className={`w-9 h-9 rounded-full font-bold flex items-center justify-center text-sm shrink-0 ${u.isPlatformAdmin ? "bg-slate-900 text-white" : "bg-brand-100 text-brand-700"}`}>
                           {u.isPlatformAdmin ? "★" : u.name.charAt(0).toUpperCase()}
@@ -185,6 +248,51 @@ export default function PlatformUsers() {
         onConfirm={doDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      <Modal open={showForm} onClose={() => setShowForm(false)} title="Create user">
+        <form onSubmit={createUser} className="space-y-4">
+          <div>
+            <label className="label">Business *</label>
+            <select
+              required
+              className="input"
+              value={form.businessId}
+              onChange={(e) => setForm({ ...form, businessId: e.target.value })}
+            >
+              <option value="">Select a business…</option>
+              {businesses.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}{b.ownerName ? ` (${b.ownerName})` : ""}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Name *</label>
+            <input required minLength={2} className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Email * (sign-in)</label>
+            <input required type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Temporary password * (min 8 chars)</label>
+            <input required minLength={8} type="text" className="input" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Phone</label>
+            <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Role *</label>
+            <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+            <button className="btn-primary" disabled={saving}>{saving ? "Creating…" : "Create user"}</button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

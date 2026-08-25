@@ -15,6 +15,8 @@ import BarcodeScanner from "../components/BarcodeScanner";
 import ThermalReceipt from "../components/ThermalReceipt";
 import Modal from "../components/Modal";
 import { inr, titleCase } from "../utils/format";
+import useSelection from "../hooks/useSelection";
+import BulkDeleteBar from "../components/BulkDeleteBar";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";
 
@@ -67,6 +69,19 @@ export default function PosPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [heldBills, setHeldBills] = useState([]);
   const [heldOpen, setHeldOpen] = useState(false);
+  const selection = useSelection(heldBills);
+
+  const handleBulkDeleteHeld = async () => {
+    try {
+      const res = await api.delete("/pos/hold/bulk", { data: { ids: selection.selectedIds } });
+      const { deleted, failed } = res.data.data || {};
+      toast.success(`Deleted ${deleted || 0} held bills${failed?.length ? `, ${failed.length} skipped` : ""}`);
+      selection.clear();
+      loadHeldBills();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
   const [saving, setSaving] = useState(false);
   const [receipt, setReceipt] = useState(null);
 
@@ -450,8 +465,32 @@ export default function PosPage() {
             <p className="text-sm text-slate-400 text-center py-6">No held bills.</p>
           ) : (
             <div className="space-y-2">
+              {canReturn && (
+                <div className="flex items-center gap-3 mb-1">
+                  <label className="flex items-center gap-2 text-sm text-slate-600 shrink-0">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-brand-600"
+                      checked={selection.allSelected}
+                      onChange={(e) => selection.toggleAll(e.target.checked)}
+                      aria-label="Select all held bills"
+                    />
+                    Select all
+                  </label>
+                  <BulkDeleteBar count={selection.count} label="held bills" onDelete={handleBulkDeleteHeld} onClear={selection.clear} />
+                </div>
+              )}
               {heldBills.map((b) => (
-                <div key={b.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
+                <div key={b.id} className={`flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2 ${selection.has(b.id) ? "bg-brand-50/40" : ""}`}>
+                  {canReturn && (
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-brand-600 shrink-0"
+                      checked={selection.has(b.id)}
+                      onChange={() => selection.toggle(b.id)}
+                      aria-label={`Select ${b.name}`}
+                    />
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 truncate">{b.name}</p>
                     <p className="text-xs text-slate-500">

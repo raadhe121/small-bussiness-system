@@ -1,6 +1,7 @@
 const prisma = require("../config/prisma");
 const { ApiError } = require("../utils/response");
 const { parsePagination, buildMeta } = require("../utils/pagination");
+const bcrypt = require("bcryptjs");
 
 /** Cross-tenant platform admin service — the DukaanSetu back-office. */
 
@@ -319,6 +320,40 @@ async function deleteUser(actor, userId) {
   return { id: userId };
 }
 
+/** Creates a tenant user inside a chosen business (platform back-office only). */
+async function createUser(actor, data) {
+  const business = await prisma.business.findUnique({ where: { id: data.businessId } });
+  if (!business) throw new ApiError(404, "Business not found");
+
+  const exists = await prisma.user.findUnique({ where: { email: data.email } });
+  if (exists) throw new ApiError(409, "A user with this email already exists");
+
+  let branchId = null;
+  if (data.branchId) {
+    const branch = await prisma.branch.findFirst({ where: { id: data.branchId, businessId: data.businessId } });
+    if (!branch) throw new ApiError(400, "Selected branch does not belong to this business");
+    branchId = branch.id;
+  }
+
+  const user = await prisma.user.create({
+    data: {
+      name: data.name,
+      email: data.email,
+      phone: data.phone || null,
+      passwordHash: await bcrypt.hash(data.password, 12),
+      role: data.role,
+      businessId: business.id,
+      branchId,
+      isPlatformAdmin: false,
+    },
+    select: {
+      id: true, name: true, email: true, phone: true, role: true,
+      isActive: true, businessId: true, business: { select: { id: true, name: true } },
+    },
+  });
+  return user;
+}
+
 module.exports = {
   getOverview,
   listBusinesses,
@@ -329,4 +364,5 @@ module.exports = {
   setUserStatus,
   changeUserRole,
   deleteUser,
+  createUser,
 };

@@ -1,4 +1,5 @@
 const prisma = require("../config/prisma");
+const { transaction } = require("../utils/db");
 const { ApiError } = require("../utils/response");
 const { paginate } = require("../utils/paginate");
 const { D, round2 } = require("../utils/money");
@@ -12,7 +13,7 @@ async function createPayment(businessId, userId, data) {
   const amount = round2(data.amount);
   const paymentDate = data.paymentDate || new Date();
 
-  return prisma.$transaction(async (tx) => {
+  return transaction(async (tx) => {
     if (data.direction === "RECEIVED") {
       const customer = await tx.customer.findFirst({ where: { id: data.partyId, businessId } });
       if (!customer) throw new ApiError(404, "Customer not found");

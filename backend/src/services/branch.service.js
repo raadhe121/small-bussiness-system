@@ -84,4 +84,19 @@ async function deleteBranch(businessId, id) {
   return { id };
 }
 
-module.exports = { listBranches, getBranch, createBranch, updateBranch, deleteBranch };
+/**
+ * Returns the business's default branch, lazily creating one ("Main") if the
+ * business was created before the multi-branch feature (so stock/inventory
+ * operations always have a branch to write against).
+ */
+async function getOpBranch(businessId) {
+  let branch = await prisma.branch.findFirst({ where: { businessId, isDefault: true } });
+  if (!branch) {
+    branch = await prisma.branch.create({
+      data: { businessId, name: "Main", code: "MAIN", isDefault: true },
+    });
+  }
+  return branch;
+}
+
+module.exports = { listBranches, getBranch, createBranch, updateBranch, deleteBranch, getOpBranch };

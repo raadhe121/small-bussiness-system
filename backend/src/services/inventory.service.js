@@ -1,5 +1,6 @@
 const { Prisma } = require("@prisma/client");
 const prisma = require("../config/prisma");
+const { transaction } = require("../utils/db");
 const { ApiError } = require("../utils/response");
 const { parsePagination, buildMeta } = require("../utils/pagination");
 const { round2, add, sub, D } = require("../utils/money");
@@ -228,7 +229,7 @@ async function listTransactions(scope, query) {
 // ---------- Manual operations ----------
 
 async function adjustStock(scope, user, data) {
-  return prisma.$transaction(async (tx) => {
+  return transaction(async (tx) => {
     await lockProduct(tx, scope.businessId, data.productId);
     const product = await tx.product.findUnique({ where: { id: data.productId } });
     if (!product) throw new ApiError(404, "Product not found");
@@ -266,7 +267,7 @@ async function adjustStock(scope, user, data) {
  * total is unchanged; only the two BranchStock rows move.
  */
 async function transferStock(scope, user, data) {
-  return prisma.$transaction(async (tx) => {
+  return transaction(async (tx) => {
     await lockProduct(tx, scope.businessId, data.productId);
     const product = await tx.product.findUnique({ where: { id: data.productId } });
     if (!product) throw new ApiError(404, "Product not found");

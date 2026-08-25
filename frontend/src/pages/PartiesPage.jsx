@@ -6,14 +6,18 @@ import api, { errMsg } from "../services/api";
 import { submitOrQueue } from "../services/offlineQueue";
 import useFetch from "../hooks/useFetch";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
 import PageHeader from "../components/PageHeader";
 import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
+import useSelection from "../hooks/useSelection";
+import BulkDeleteBar from "../components/BulkDeleteBar";
 
 import EmptyState from "../components/EmptyState";
 import { inr } from "../utils/format";
+import { hasPermission } from "../utils/permissions";
 
 const emptyForm = { name: "", phone: "", email: "", address: "", city: "", state: "", pincode: "", gstin: "", creditLimit: 0 };
 
@@ -24,6 +28,8 @@ export default function PartiesPage({ mode }) {
   const label = isCustomer ? "Customer" : "Supplier";
 
   const toast = useToast();
+  const { user } = useAuth();
+  const canManage = hasPermission(user?.role, isCustomer ? "customers:manage" : "suppliers:manage");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
@@ -34,6 +40,22 @@ export default function PartiesPage({ mode }) {
     () => api.get(base, { params: { search: search || undefined } }).then((r) => r.data.data),
     [search, mode]
   );
+  const items = data?.items || [];
+  const selection = useSelection(items);
+
+  const handleBulkDelete = async () => {
+    try {
+      const endpoint = isCustomer ? "/customers/bulk" : "/suppliers/bulk";
+      const res = await api.delete(endpoint, { data: { ids: selection.selectedIds } });
+      const { deleted, failed } = res.data.data || {};
+      const label = isCustomer ? "customers" : "suppliers";
+      toast.success(`Deleted ${deleted || 0} ${label}${failed?.length ? `, ${failed.length} skipped` : ""}`);
+      selection.clear();
+      refetch();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
 
   const openCreate = () => {
     setEditItem(null);
@@ -76,6 +98,8 @@ export default function PartiesPage({ mode }) {
 
       <SearchInput className="sm:max-w-xs mb-4" value={search} onChange={setSearch} placeholder={`Search name or phone...`} />
 
+      {canManage && <BulkDeleteBar count={selection.count} label={isCustomer ? "customers" : "suppliers"} onDelete={handleBulkDelete} onClear={selection.clear} />}
+
       <div className="card overflow-hidden">
         {loading ? (
           <TableSkeleton />
@@ -91,6 +115,11 @@ export default function PartiesPage({ mode }) {
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
+                  {canManage && (
+                    <th className="th w-10">
+                      <input type="checkbox" checked={selection.allSelected} onChange={(e) => selection.toggleAll(e.target.checked)} aria-label="Select all" />
+                    </th>
+                  )}
                   <th className="th">Name</th>
                   <th className="th">Phone</th>
                   <th className="th">City</th>
@@ -101,7 +130,12 @@ export default function PartiesPage({ mode }) {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {data.items.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/60">
+                  <tr key={item.id} className={canManage && selection.has(item.id) ? "hover:bg-slate-50/60 bg-brand-50/40" : "hover:bg-slate-50/60"}>
+                    {canManage && (
+                      <td className="td">
+                        <input type="checkbox" checked={selection.has(item.id)} onChange={() => selection.toggle(item.id)} aria-label="Select row" />
+                      </td>
+                    )}
                     <td className="td">
                       <Link to={`${base}/${item.id}`} className="font-medium hover:text-brand-600">{item.name}</Link>
                       {item.gstin && <p className="text-xs text-slate-400">{item.gstin}</p>}

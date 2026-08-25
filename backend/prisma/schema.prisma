@@ -138,6 +138,14 @@ model Branch {
 
   business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   branchStocks BranchStock[]
+  sales        Sale[]
+  purchases    Purchase[]
+  payments     Payment[]
+  expenses     Expense[]
+  saleReturns  SaleReturn[]
+  inventoryTransactions InventoryTransaction[]
+  heldBills    HeldBill[]
+  users        User[]
 
   @@unique([businessId, code])
   @@index([businessId])
@@ -182,6 +190,7 @@ model User {
 
   business   Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customRole Role?     @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  branch     Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
   @@index([branchId])
@@ -287,6 +296,7 @@ model InventoryTransaction {
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branch   Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([businessId, productId, createdAt])
   @@index([businessId, createdAt])
@@ -412,6 +422,7 @@ model Sale {
 
   business Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  branch   Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
   items    SaleItem[]
   returns  SaleReturn[]
 
@@ -446,6 +457,7 @@ model SaleReturn {
   business Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
   sale     Sale             @relation(fields: [saleId], references: [id], onDelete: Cascade)
   customer Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  branch   Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
   items    SaleReturnItem[]
 
   @@unique([businessId, returnNo])
@@ -495,6 +507,7 @@ model HeldBill {
   updatedAt     DateTime      @updatedAt
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branch   Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([businessId, createdAt])
   @@index([branchId])
@@ -543,6 +556,7 @@ model Purchase {
 
   business Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   supplier Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  branch   Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
   items    PurchaseItem[]
 
   @@index([businessId, purchaseDate])
@@ -594,6 +608,7 @@ model Payment {
   business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
   supplier Supplier? @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  branch   Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([businessId, paymentDate])
   @@index([businessId, partyType])
@@ -632,6 +647,7 @@ model Expense {
 
   business        Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
   expenseCategory ExpenseCategory @relation(fields: [expenseCategoryId], references: [id], onDelete: Restrict)
+  branch          Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([businessId, expenseDate])
   @@index([branchId])

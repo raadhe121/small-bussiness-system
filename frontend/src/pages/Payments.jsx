@@ -11,6 +11,8 @@ import SearchInput from "../components/SearchInput";
 import Modal from "../components/Modal";
 
 import EmptyState from "../components/EmptyState";
+import useSelection from "../hooks/useSelection";
+import BulkDeleteBar from "../components/BulkDeleteBar";
 import { inr, fmtDate } from "../utils/format";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";
@@ -21,6 +23,7 @@ export default function Payments() {
   const toast = useToast();
   const { user } = useAuth();
   const canCreate = hasPermission(user?.role, "payments:create");
+  const canManage = hasPermission(user?.role, "payments:manage");
   const [tab, setTab] = useState("customer");
   const [search, setSearch] = useState("");
   const [payOpen, setPayOpen] = useState(false);
@@ -32,6 +35,20 @@ export default function Payments() {
     () => api.get("/payments", { params: { partyType: tab.toUpperCase(), search: search || undefined } }).then((r) => r.data.data),
     [tab, search]
   );
+  const items = data?.items || [];
+  const selection = useSelection(items);
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await api.delete("/payments/bulk", { data: { ids: selection.selectedIds } });
+      const { deleted, failed } = res.data.data || {};
+      toast.success(`Deleted ${deleted || 0} payments${failed?.length ? `, ${failed.length} skipped` : ""}`);
+      selection.clear();
+      refetch();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
   const { data: parties } = useFetch(
     () => api.get(isCustomer ? "/customers" : "/suppliers", { params: { limit: 100 } }).then((r) => r.data.data.items),
     [isCustomer]
@@ -91,6 +108,8 @@ export default function Payments() {
         <SearchInput className="sm:max-w-xs flex-1" value={search} onChange={setSearch} placeholder="Search reference..." />
       </div>
 
+      <BulkDeleteBar count={selection.count} label="payments" onDelete={handleBulkDelete} onClear={selection.clear} />
+
       <div className="card overflow-hidden">
         {loading ? (
           <TableSkeleton />
@@ -102,6 +121,9 @@ export default function Payments() {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
+                    <th className="th w-10">
+                      <input type="checkbox" checked={selection.allSelected} onChange={(e) => selection.toggleAll(e.target.checked)} aria-label="Select all" />
+                    </th>
                     <th className="th">Date</th>
                     <th className="th">Party</th>
                     <th className="th">Branch</th>
@@ -112,7 +134,10 @@ export default function Payments() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {data.items.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50/60">
+                    <tr key={p.id} className={selection.has(p.id) ? "hover:bg-slate-50/60 bg-brand-50/40" : "hover:bg-slate-50/60"}>
+                      <td className="td">
+                        <input type="checkbox" checked={selection.has(p.id)} onChange={() => selection.toggle(p.id)} aria-label="Select row" />
+                      </td>
                       <td className="td">{fmtDate(p.paymentDate)}</td>
                       <td className="td font-medium">
                         {p.customer || p.supplier ? (

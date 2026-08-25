@@ -10,6 +10,9 @@ import ConfirmDialog from "../components/ConfirmDialog";
 
 import EmptyState from "../components/EmptyState";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
+import useSelection from "../hooks/useSelection";
+import BulkDeleteBar from "../components/BulkDeleteBar";
 import { ALL_PERMISSIONS } from "../utils/permissions";
 
 function PermissionPicker({ selected, onChange }) {
@@ -53,7 +56,23 @@ function PermissionPicker({ selected, onChange }) {
 
 export default function Roles() {
   const toast = useToast();
+  const { user } = useAuth();
+  const canManage = user?.role === "OWNER";
   const { data, loading, refetch } = useFetch(() => api.get("/roles").then((r) => r.data.data), []);
+  const items = data?.custom || [];
+  const selection = useSelection(items);
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await api.delete("/roles/bulk", { data: { ids: selection.selectedIds } });
+      const { deleted, failed } = res.data.data || {};
+      toast.success(`Deleted ${deleted || 0} roles${failed?.length ? `, ${failed.length} skipped` : ""}`);
+      selection.clear();
+      refetch();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
   const [showForm, setShowForm] = useState(false);
   const [editRole, setEditRole] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -113,7 +132,10 @@ export default function Roles() {
       />
 
       {loading ? (<CardGridSkeleton count={4} />) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <>
+          {canManage && <BulkDeleteBar count={selection.count} label="roles" onDelete={handleBulkDelete} onClear={selection.clear} />}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Built-in roles */}
           <div className="card overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200">
@@ -141,6 +163,15 @@ export default function Roles() {
             <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200">
               <Shield className="w-4 h-4 text-brand-500" />
               <h2 className="font-semibold text-slate-800 text-sm">Your custom roles</h2>
+              {canManage && (
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 accent-brand-600 ml-auto"
+                  checked={selection.allSelected}
+                  onChange={(e) => selection.toggleAll(e.target.checked)}
+                  aria-label="Select all"
+                />
+              )}
             </div>
             {!data?.custom?.length ? (
               <EmptyState
@@ -152,7 +183,16 @@ export default function Roles() {
             ) : (
               <ul className="divide-y divide-slate-100">
                 {data.custom.map((role) => (
-                  <li key={role.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                  <li key={role.id} className={`px-4 py-3 flex items-start justify-between gap-3 ${selection.has(role.id) ? "bg-brand-50/40" : ""}`}>
+                    {canManage && (
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 accent-brand-600 mt-0.5 shrink-0"
+                        checked={selection.has(role.id)}
+                        onChange={() => selection.toggle(role.id)}
+                        aria-label={`Select ${role.name}`}
+                      />
+                    )}
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold text-slate-800">{role.name}</p>
@@ -176,8 +216,9 @@ export default function Roles() {
                 ))}
               </ul>
             )}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Create / edit modal */}

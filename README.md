@@ -85,6 +85,16 @@ Skeleton components live in `frontend/src/components/Skeleton.jsx`:
 
 Convention: replace any `if (loading) return <Spinner />`, `PageLoader`, or `Loader2`/`animate-spin` usage with the matching skeleton above. There is no spinner component in the codebase.
 
+## Bulk (multi-select) delete
+
+Every listing page (Products, Categories, Customers, Suppliers, Expenses, Roles, Branches, Team users, Sales, Purchases, Invoices, Payments, Platform Businesses/Users, and held POS bills) supports multi-select deletion:
+
+- A checkbox column lets you select individual rows or "select all" in the header.
+- A sticky bar appears when rows are selected, showing the count and a **Delete selected** button (with a confirmation).
+- The selection helper lives in `frontend/src/hooks/useSelection.js`; the action bar in `frontend/src/components/BulkDeleteBar.jsx`.
+
+Backend: `DELETE /api/<resource>/bulk` accepts `{ "ids": [...] }`. The handler deletes row-by-row so a foreign-key-restricted row (e.g. a product with sales history, or a category in use) is reported as skipped instead of failing the whole batch. Response: `{ deleted, failed: [{ id, reason }] }`. Tenant scoping is enforced by the `businessId` in the delete `where` clause. Financial records (sales, purchases, invoices, payments) require the `*:manage` permission (OWNER / ADMIN).
+
 ## Requirements
 
 - Node.js ≥ 20

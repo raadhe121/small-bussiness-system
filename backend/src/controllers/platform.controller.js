@@ -27,6 +27,11 @@ exports.listUsers = asyncHandler(async (req, res) => {
   ok(res, await platformService.listUsers(req.query), "Users");
 });
 
+exports.createUser = asyncHandler(async (req, res) => {
+  const user = await platformService.createUser(req.user, req.body);
+  ok(res, user, "User created");
+});
+
 exports.setUserStatus = asyncHandler(async (req, res) => {
   ok(res, await platformService.setUserStatus(req.user, req.params.id, req.body.isActive), "User status updated");
 });

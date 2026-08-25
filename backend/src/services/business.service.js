@@ -1,4 +1,5 @@
 const prisma = require("../config/prisma");
+const { transaction } = require("../utils/db");
 const { ApiError } = require("../utils/response");
 const bcrypt = require("bcryptjs");
 const { issueToken, publicUser } = require("./auth.service");
@@ -15,7 +16,7 @@ const DEFAULT_EXPENSE_CATEGORIES = [
 async function createBusiness(user, data) {
   if (user.businessId) throw new ApiError(409, "You already belong to a business");
 
-  const business = await prisma.$transaction(async (tx) => {
+  const business = await transaction(async (tx) => {
     const biz = await tx.business.create({
       data: {
         name: data.name,

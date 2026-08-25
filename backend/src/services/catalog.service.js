@@ -1,4 +1,5 @@
 const prisma = require("../config/prisma");
+const { transaction } = require("../utils/db");
 const { ApiError } = require("../utils/response");
 const { parsePagination, buildMeta } = require("../utils/pagination");
 const { round2, add } = require("../utils/money");
@@ -117,7 +118,7 @@ async function createProduct(businessId, userId, data) {
   if (skuDup) throw new ApiError(409, "A product with this SKU already exists");
 
   const openingStock = data.openingStock ?? data.currentStock ?? 0;
-  const product = await prisma.$transaction(async (tx) => {
+  const product = await transaction(async (tx) => {
     const created = await tx.product.create({
       data: {
         businessId,

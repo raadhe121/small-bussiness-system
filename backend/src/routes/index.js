@@ -1,7 +1,9 @@
 const { Router } = require("express");
+const prisma = require("../config/prisma");
 const { authenticate, requireBusiness } = require("../middleware/authenticate");
 const { authorize, requireOwner, requirePlatformAdmin, requireManager } = require("../middleware/authorize");
 const { validate } = require("../middleware/validate");
+const { bulkDeleteHandler } = require("../utils/bulkDelete");
 const z = require("zod");
 
 // schemas
@@ -75,9 +77,21 @@ module.exports = function apiRouter() {
     isActive: z.boolean().optional(),
     role: z.enum(["OWNER", "ADMIN", "MANAGER", "EMPLOYEE", "ACCOUNTANT"]).optional(),
   });
+  const pUserCreate = z.object({
+    businessId: z.string().uuid(),
+    name: z.string().trim().min(2).max(120),
+    email: z.string().trim().toLowerCase().email(),
+    password: z.string().min(8).max(72),
+    phone: z.string().trim().max(20).optional().or(z.literal("")),
+    role: z.enum(["OWNER", "ADMIN", "MANAGER", "EMPLOYEE", "ACCOUNTANT"]),
+    branchId: z.string().uuid().optional().or(z.literal("")),
+  });
   platform.get("/users", platformC.listUsers);
+  platform.post("/users", validate({ body: pUserCreate }), platformC.createUser);
   platform.put("/users/:id", idParam, validate({ body: pUserBody }), platformC.updateUser);
   platform.delete("/users/:id", idParam, platformC.deleteUser);
+  platform.delete("/businesses/bulk", bulkDeleteHandler({ delegate: prisma.business, scope: {} }));
+  platform.delete("/users/bulk", bulkDeleteHandler({ delegate: prisma.user, scope: {} }));
   router.use("/platform", platform);
 
   // Everything below requires a business tenant.
@@ -93,6 +107,7 @@ module.exports = function apiRouter() {
   users.post("/", authorize("users", "manage"), validate({ body: bizV.userCreateSchema }), bizC.createUser);
   users.put("/:id", authorize("users", "manage"), idParam, validate({ body: bizV.userUpdateSchema }), bizC.updateUser);
   users.get("/:id/activity", authorize("users", "manage"), idParam, bizC.getUserActivity);
+  users.delete("/bulk", authorize("users", "manage"), bulkDeleteHandler({ delegate: prisma.user, scope: (req) => ({ businessId: req.user.businessId }) }));
   router.use("/users", users);
 
   router.use("/business", business);
@@ -110,6 +125,7 @@ module.exports = function apiRouter() {
   roles.post("/", requireOwner, validate({ body: roleBody }), roleC.createRole);
   roles.put("/:id", requireOwner, idParam, validate({ body: roleBody.partial() }), roleC.updateRole);
   roles.delete("/:id", requireOwner, idParam, roleC.deleteRole);
+  roles.delete("/bulk", requireOwner, bulkDeleteHandler({ delegate: prisma.role, scope: (req) => ({ businessId: req.user.businessId }) }));
   router.use("/roles", roles);
 
   // ---- Branches (multi-location under one business) ----
@@ -119,6 +135,7 @@ module.exports = function apiRouter() {
   branches.post("/", requireManager, validate({ body: branchV.branchSchema }), branchC.createBranch);
   branches.put("/:id", requireManager, idParam, validate({ body: branchV.branchUpdateSchema }), branchC.updateBranch);
   branches.delete("/:id", requireManager, idParam, branchC.deleteBranch);
+  branches.delete("/bulk", requireManager, bulkDeleteHandler({ delegate: prisma.branch, scope: (req) => ({ businessId: req.user.businessId }) }));
   router.use("/branches", branches);
 
   // ---- Categories ----
@@ -126,6 +143,7 @@ module.exports = function apiRouter() {
   router.post("/categories", authorize("categories", "manage"), validate({ body: catV.categorySchema }), catC.createCategory);
   router.put("/categories/:id", authorize("categories", "manage"), idParam, validate({ body: catV.categoryUpdateSchema }), catC.updateCategory);
   router.delete("/categories/:id", authorize("categories", "manage"), idParam, catC.deleteCategory);
+  router.delete("/categories/bulk", authorize("categories", "manage"), bulkDeleteHandler({ delegate: prisma.category, scope: (req) => ({ businessId: req.user.businessId }) }));
 
   // ---- Products ----
   router.get("/products", authorize("products", "view"), validate({ query: catV.productQuerySchema }), catC.listProducts);
@@ -134,6 +152,7 @@ module.exports = function apiRouter() {
   router.post("/products", authorize("products", "manage"), validate({ body: catV.productSchema }), catC.createProduct);
   router.put("/products/:id", authorize("products", "manage"), idParam, validate({ body: catV.productUpdateSchema }), catC.updateProduct);
   router.delete("/products/:id", authorize("products", "manage"), idParam, catC.deleteProduct);
+  router.delete("/products/bulk", authorize("products", "manage"), bulkDeleteHandler({ delegate: prisma.product, scope: (req) => ({ businessId: req.user.businessId }) }));
 
   // ---- Inventory ----
   router.get("/inventory", authorize("inventory", "view"), validate({ query: txnV.inventoryQuerySchema }), invC.listInventory);
@@ -149,6 +168,7 @@ module.exports = function apiRouter() {
   router.post("/customers", authorize("customers", "manage"), validate({ body: catV.customerSchema }), partyC.createCustomer);
   router.put("/customers/:id", authorize("customers", "manage"), idParam, validate({ body: catV.customerUpdateSchema }), partyC.updateCustomer);
   router.delete("/customers/:id", authorize("customers", "manage"), idParam, partyC.deleteCustomer);
+  router.delete("/customers/bulk", authorize("customers", "manage"), bulkDeleteHandler({ delegate: prisma.customer, scope: (req) => ({ businessId: req.user.businessId }) }));
 
   // ---- Suppliers ----
   router.get("/suppliers", authorize("suppliers", "view"), validate({ query: catV.listQuery }), partyC.listSuppliers);
@@ -157,6 +177,7 @@ module.exports = function apiRouter() {
   router.post("/suppliers", authorize("suppliers", "manage"), validate({ body: catV.supplierSchema }), partyC.createSupplier);
   router.put("/suppliers/:id", authorize("suppliers", "manage"), idParam, validate({ body: catV.supplierUpdateSchema }), partyC.updateSupplier);
   router.delete("/suppliers/:id", authorize("suppliers", "manage"), idParam, partyC.deleteSupplier);
+  router.delete("/suppliers/bulk", authorize("suppliers", "manage"), bulkDeleteHandler({ delegate: prisma.supplier, scope: (req) => ({ businessId: req.user.businessId }) }));
 
   // ---- Sales / Purchases ----
   const saleQuery = validate({
@@ -171,6 +192,7 @@ module.exports = function apiRouter() {
   router.post("/sales", authorize("sales", "create"), validate({ body: txnV.saleSchema }), salesC.createSale);
   router.post("/sales/:id/return", authorize("sales", "create"), idParam, validate({ body: txnV.saleReturnSchema }), salesC.createSaleReturn);
   router.get("/returns", authorize("sales", "view"), saleQuery, salesC.listReturns);
+  router.delete("/sales/bulk", authorize("sales", "manage"), bulkDeleteHandler({ delegate: prisma.sale, scope: (req) => ({ businessId: req.user.businessId }) }));
 
   // ---- POS (hold / resume parked bills) ----
   const pos = Router();
@@ -178,25 +200,30 @@ module.exports = function apiRouter() {
   pos.get("/hold", authorize("sales", "create"), posC.listHeldBills);
   pos.get("/hold/:id", authorize("sales", "create"), idParam, posC.getHeldBill);
   pos.delete("/hold/:id", authorize("sales", "create"), idParam, posC.deleteHeldBill);
+  pos.delete("/hold/bulk", authorize("sales", "create"), bulkDeleteHandler({ delegate: prisma.heldBill, scope: (req) => ({ businessId: req.user.businessId }) }));
   router.use("/pos", pos);
   router.get("/purchases", authorize("purchases", "view"), saleQuery, salesC.listPurchases);
   router.get("/purchases/:id", authorize("purchases", "view"), idParam, salesC.getPurchase);
   router.post("/purchases", authorize("purchases", "create"), validate({ body: txnV.purchaseSchema }), salesC.createPurchase);
+  router.delete("/purchases/bulk", authorize("purchases", "manage"), bulkDeleteHandler({ delegate: prisma.purchase, scope: (req) => ({ businessId: req.user.businessId }) }));
 
   // ---- Payments ----
   router.get("/payments", authorize("payments", "view"), saleQuery, partyC.listPayments);
   router.post("/payments/customer", authorize("payments", "create"), validate({ body: catV.customerPaymentSchema }), partyC.createCustomerPayment);
   router.post("/payments/supplier", authorize("payments", "create"), validate({ body: catV.supplierPaymentSchema }), partyC.createSupplierPayment);
+  router.delete("/payments/bulk", authorize("payments", "manage"), bulkDeleteHandler({ delegate: prisma.payment, scope: (req) => ({ businessId: req.user.businessId }) }));
 
   // ---- Expenses ----
   router.get("/expenses/categories", authorize("expenses", "view"), expC.listExpenseCategories);
   router.post("/expenses/categories", authorize("expenses", "manage"), validate({ body: txnV.expenseCategorySchema }), expC.createExpenseCategory);
   router.delete("/expenses/categories/:id", authorize("expenses", "manage"), idParam, expC.deleteExpenseCategory);
+  router.delete("/expenses/categories/bulk", authorize("expenses", "manage"), bulkDeleteHandler({ delegate: prisma.expenseCategory, scope: (req) => ({ businessId: req.user.businessId }) }));
   router.get("/expenses", authorize("expenses", "view"), saleQuery, expC.listExpenses);
   router.get("/expenses/:id", authorize("expenses", "view"), idParam, expC.getExpense);
   router.post("/expenses", authorize("expenses", "manage"), validate({ body: txnV.expenseSchema }), expC.createExpense);
   router.put("/expenses/:id", authorize("expenses", "manage"), idParam, validate({ body: txnV.expenseUpdateSchema }), expC.updateExpense);
   router.delete("/expenses/:id", authorize("expenses", "manage"), idParam, expC.deleteExpense);
+  router.delete("/expenses/bulk", authorize("expenses", "manage"), bulkDeleteHandler({ delegate: prisma.expense, scope: (req) => ({ businessId: req.user.businessId }) }));
 
   // ---- Invoices ----
   router.get("/invoices/:saleId", authorize("invoices", "view"),

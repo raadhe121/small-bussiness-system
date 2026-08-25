@@ -11,7 +11,10 @@ import PageHeader from "../components/PageHeader";
 import Modal from "../components/Modal";
 import EmptyState from "../components/EmptyState";
 import ConfirmDialog from "../components/ConfirmDialog";
+import useSelection from "../hooks/useSelection";
+import BulkDeleteBar from "../components/BulkDeleteBar";
 import { fmtDateTime, ROLE_LABELS } from "../utils/format";
+import { hasPermission } from "../utils/permissions";
 
 const BUILTIN_ROLES = ["ADMIN", "MANAGER", "EMPLOYEE", "ACCOUNTANT"];
 
@@ -20,6 +23,7 @@ export default function Users() {
   const { user: me, refresh } = useAuth();
   const { branches } = useBranch();
   const isOwner = me?.role === "OWNER";
+  const canManage = hasPermission(me?.role, "users:manage");
   const canAssignBranch = isOwner && branches.length > 0;
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
@@ -29,6 +33,20 @@ export default function Users() {
 
   const { data, loading, refetch } = useFetch(() => api.get("/users").then((r) => r.data.data), []);
   const { data: rolesData } = useFetch(() => api.get("/roles").then((r) => r.data.data), []);
+  const items = data || [];
+  const selection = useSelection(items);
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await api.delete("/users/bulk", { data: { ids: selection.selectedIds } });
+      const { deleted, failed } = res.data.data || {};
+      toast.success(`Deleted ${deleted || 0} users${failed?.length ? `, ${failed.length} skipped` : ""}`);
+      selection.clear();
+      refetch();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
   const customRoles = rolesData?.custom || [];
 
   const openCreate = () => {
@@ -93,12 +111,17 @@ export default function Users() {
         </div>
       )}
 
+      <BulkDeleteBar count={selection.count} label="users" onDelete={handleBulkDelete} onClear={selection.clear} />
+
       <div className="card overflow-hidden">
         {loading ? (<TableSkeleton />) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
+                  <th className="th w-10">
+                    <input type="checkbox" checked={selection.allSelected} onChange={(e) => selection.toggleAll(e.target.checked)} aria-label="Select all" />
+                  </th>
                   <th className="th">Member</th>
                   <th className="th">Role</th>
                   <th className="th">Branch</th>
@@ -109,7 +132,10 @@ export default function Users() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {(data || []).map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50/60">
+                  <tr key={u.id} className={selection.has(u.id) ? "hover:bg-slate-50/60 bg-brand-50/40" : "hover:bg-slate-50/60"}>
+                    <td className="td">
+                      <input type="checkbox" checked={selection.has(u.id)} onChange={() => selection.toggle(u.id)} aria-label="Select row" />
+                    </td>
                     <td className="td">
                       <div className="flex items-center gap-3">
                         <span className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center text-sm">

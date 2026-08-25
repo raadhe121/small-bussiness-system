@@ -11,6 +11,8 @@ import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
+import useSelection from "../hooks/useSelection";
+import BulkDeleteBar from "../components/BulkDeleteBar";
 
 import EmptyState from "../components/EmptyState";
 import { inr } from "../utils/format";
@@ -42,6 +44,8 @@ export default function Products() {
     [search, page]
   );
   const { data: categories } = useFetch(() => api.get("/categories?limit=100").then((r) => r.data.data.items), []);
+  const products = data?.items || [];
+  const selection = useSelection(products);
 
   const openCreate = () => {
     setEditItem(null);
@@ -96,6 +100,18 @@ export default function Products() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    try {
+      const res = await api.delete("/products/bulk", { data: { ids: selection.selectedIds } });
+      const { deleted, failed } = res.data.data || {};
+      toast.success(`Deleted ${deleted || 0} product(s)${failed?.length ? `, ${failed.length} skipped` : ""}`);
+      selection.clear();
+      refetch();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -113,6 +129,8 @@ export default function Products() {
         />
       </div>
 
+      <BulkDeleteBar count={selection.count} label="products" onDelete={handleBulkDelete} onClear={selection.clear} />
+
       <div className="card overflow-hidden">
         {loading ? (
           <TableSkeleton />
@@ -129,6 +147,9 @@ export default function Products() {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
+                    <th className="th w-10">
+                      <input type="checkbox" checked={selection.allSelected} onChange={(e) => selection.toggleAll(e.target.checked)} aria-label="Select all" />
+                    </th>
                     <th className="th">Product</th>
                     <th className="th">Category</th>
                     <th className="th text-right">Purchase</th>
@@ -140,7 +161,10 @@ export default function Products() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {data.items.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50/60">
+                    <tr key={p.id} className={selection.has(p.id) ? "hover:bg-slate-50/60 bg-brand-50/40" : "hover:bg-slate-50/60"}>
+                      <td className="td">
+                        <input type="checkbox" checked={selection.has(p.id)} onChange={() => selection.toggle(p.id)} aria-label={`Select ${p.name}`} />
+                      </td>
                       <td className="td">
                         <p className="font-medium text-slate-800">{p.name}</p>
                         <p className="text-xs text-slate-400">{p.sku}{p.unit !== "PCS" ? ` · ${p.unit}` : ""}</p>

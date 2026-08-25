@@ -1,5 +1,6 @@
 const { Prisma } = require("@prisma/client");
 const prisma = require("../config/prisma");
+const { transaction } = require("../utils/db");
 const { ApiError } = require("../utils/response");
 const { parsePagination, buildMeta } = require("../utils/pagination");
 const { resolveReadScope, resolveWriteBranch } = require("../utils/branchScope");
@@ -54,7 +55,7 @@ async function listPayments(scope, query) {
 
 async function createCustomerPayment(user, data) {
   const scope = resolveWriteBranch(user, data);
-  return prisma.$transaction(async (tx) => {
+  return transaction(async (tx) => {
     const customer = await tx.customer.findFirst({
       where: { id: data.customerId, businessId: user.businessId },
     });
@@ -103,7 +104,7 @@ async function createCustomerPayment(user, data) {
 
 async function createSupplierPayment(user, data) {
   const scope = resolveWriteBranch(user, data);
-  return prisma.$transaction(async (tx) => {
+  return transaction(async (tx) => {
     const supplier = await tx.supplier.findFirst({
       where: { id: data.supplierId, businessId: user.businessId },
     });
