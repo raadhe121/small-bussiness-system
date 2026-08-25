@@ -44,6 +44,8 @@ export default function App() {
   return (
     <Routes>
       {/* Public */}
+            <Route path="/" element={<ProtectedRoute guestOnly><Login /></ProtectedRoute>} />
+
       <Route path="/login" element={<ProtectedRoute guestOnly><Login /></ProtectedRoute>} />
       <Route path="/register" element={<ProtectedRoute guestOnly><Register /></ProtectedRoute>} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
